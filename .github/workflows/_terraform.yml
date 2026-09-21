@@ -66,6 +66,7 @@ jobs:
         id: plan
         env:
           TF_VAR_konnect_pat: ${{ secrets.KONNECT_TOKEN }}
+          TF_VAR_grafana_otlp_token: ${{ secrets.GRAFANA_CLOUD_OTLP_TOKEN }}
         run: terraform plan -out=tfplan -no-color | tee plan.txt
 
       - name: Post plan to PR
@@ -91,4 +92,5 @@ jobs:
         if: ${{ inputs.apply == true }}
         env:
           TF_VAR_konnect_pat: ${{ secrets.KONNECT_TOKEN }}
+          TF_VAR_grafana_otlp_token: ${{ secrets.GRAFANA_CLOUD_OTLP_TOKEN }}
         run: terraform apply -auto-approve tfplan
