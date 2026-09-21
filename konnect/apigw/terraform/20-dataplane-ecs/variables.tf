@@ -68,7 +68,7 @@ variable "grafana_instance_id" {
 # --- Images (bump to current stable as needed) ------------------------------
 variable "kong_image" {
   type    = string
-  default = "kong/kong-gateway:3.11"
+  default = "kong/kong-gateway:3.15.0.6"
 }
 
 variable "otel_collector_image" {
