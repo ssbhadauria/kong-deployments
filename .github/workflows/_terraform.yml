@@ -16,10 +16,16 @@ on:
         type: boolean
         default: false
 
+# These are what the reusable workflow NEEDS. Every caller must grant at least
+# this set (permissions can be downgraded but not elevated by a reusable
+# workflow, and omitting them does NOT inherit the caller's — it drops to
+# metadata-only, breaking OIDC + checkout). So terraform-plan.yml AND
+# terraform-apply.yml both grant all three, even though only the plan path
+# actually uses pull-requests (for the PR plan comment).
 permissions:
   id-token: write # assume the AWS role via OIDC
-  contents: read
-  pull-requests: write # post the plan as a PR comment
+  contents: read # checkout
+  pull-requests: write # PR plan comment (plan path only)
 
 env:
   AWS_REGION: us-east-2
@@ -64,6 +70,7 @@ jobs:
 
       - name: Post plan to PR
         if: ${{ inputs.apply == false && github.event_name == 'pull_request' }}
+        continue-on-error: true # a comment failure must never fail the plan
         uses: actions/github-script@v7
         with:
           script: |
