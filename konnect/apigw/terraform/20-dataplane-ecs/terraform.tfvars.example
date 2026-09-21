@@ -1,0 +1,15 @@
+# Non-secret inputs (safe to commit). The Grafana token is NOT here — it comes
+# from the GitHub secret GRAFANA_CLOUD_OTLP_TOKEN via TF_VAR_grafana_otlp_token.
+
+aws_region = "us-west-1"
+
+vpc_id             = "vpc-0347301e32ba65b81"
+public_subnet_ids  = ["subnet-08fefaa180c5bc682", "subnet-0c099e919aae2c6e2"]
+private_subnet_ids = ["subnet-00df8c47b9762eda4", "subnet-0bc2e8f1524962012"]
+
+# Open to the world for the demo. Lock to office/VPN CIDRs for anything real.
+proxy_ingress_cidrs = ["0.0.0.0/0"]
+
+grafana_otlp_endpoint = "https://otlp-gateway-prod-us-west-0.grafana.net/otlp"
+grafana_instance_id   = "1795125"
+
