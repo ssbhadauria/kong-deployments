@@ -26,10 +26,10 @@ terraform {
   #   terraform plan   (on PR, posted as a comment)
   #   terraform apply  (on merge to main)
   backend "s3" {
-    bucket       = "kong-refresher-tfstate"
-    key          = "10-konnect-platform/terraform.tfstate"
-    region       = "us-east-2"
-    encrypt      = true
+    bucket  = "kong-refresher-tfstate"
+    key     = "10-konnect-platform/terraform.tfstate"
+    region  = "us-east-2"
+    encrypt = true
 
     # Locking: pick ONE.
     #  - Classic (any TF version):  dynamodb_table = "kong-refresher-tflock"
