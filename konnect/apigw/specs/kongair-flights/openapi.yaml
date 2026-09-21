@@ -1,0 +1,82 @@
+openapi: 3.0.0
+info:
+  title: Flights Service
+  description: KongAir Flights service provides flight schedule information (flight number, route, and times).
+  version: 0.1.0
+servers:
+  - url: https://api.kong-air.com
+    description: KongAir public API server
+paths:
+  /health:
+    get:
+      operationId: get-health
+      summary: Health check endpoint
+      description: Returns the service health status.
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: OK
+  /flights:
+    get:
+      operationId: get-flights
+      summary: List flights
+      description: Returns scheduled KongAir flights, optionally filtered by date.
+      parameters:
+        - name: flight_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: A list of flights
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flight"
+  /flights/{flightNumber}:
+    get:
+      operationId: get-flight-by-number
+      summary: Get a flight by number
+      parameters:
+        - name: flightNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A single flight
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flight"
+        "404":
+          description: Flight not found
+components:
+  schemas:
+    Flight:
+      type: object
+      properties:
+        number:
+          type: string
+          example: KD924
+        route_id:
+          type: string
+          example: LHR-SFO
+        scheduled_departure:
+          type: string
+          format: date-time
+        scheduled_arrival:
+          type: string
+          format: date-time
