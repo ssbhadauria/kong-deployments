@@ -1,0 +1,84 @@
+name: terraform-destroy
+
+# Repeatable demo cleanup. Manually destroys ONE stack, gated by the production
+# environment. Requires typing the stack path twice (input + confirm) to avoid
+# nuking the wrong thing. 00-bootstrap is intentionally NOT destroyable here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: "Stack to DESTROY, e.g. konnect/apigw/terraform/30-gateway-config"
+        required: true
+        type: string
+      confirm:
+        description: "Retype the exact stack path to confirm"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-1
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          if [ "${{ inputs.stack }}" != "${{ inputs.confirm }}" ]; then
+            echo "::error::stack and confirm do not match"; exit 1
+          fi
+          case "${{ inputs.stack }}" in
+            konnect/apigw/terraform/00-bootstrap*)
+              echo "::error::refusing to destroy 00-bootstrap (state backend + CI trust)"; exit 1 ;;
+            konnect/apigw/terraform/*) : ;;
+            *) echo "::error::not a terraform stack path"; exit 1 ;;
+          esac
+          echo "OK to destroy ${{ inputs.stack }}"
+
+  gate:
+    needs: guard
+    runs-on: ubuntu-latest
+    environment: production # required reviewers approve the destroy
+    steps:
+      - run: echo "Approved destroy of ${{ inputs.stack }}"
+
+  destroy:
+    needs: [guard, gate]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.stack }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+
+      # Regenerate any generated config first so destroy sees the same resources.
+      - name: Generate config (if the stack has a generator)
+        run: |
+          if [ -f generate.sh ]; then chmod +x generate.sh && ./generate.sh; fi
+
+      - name: Init
+        run: terraform init
+
+      - name: Destroy
+        env:
+          TF_VAR_konnect_pat: ${{ secrets.KONNECT_TOKEN }}
+          TF_VAR_grafana_otlp_token: ${{ secrets.GRAFANA_CLOUD_OTLP_TOKEN }}
+        run: terraform destroy -auto-approve

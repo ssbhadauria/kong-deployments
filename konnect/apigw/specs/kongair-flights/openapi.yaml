@@ -6,12 +6,32 @@ info:
 servers:
   - url: https://api.kong-air.com
     description: KongAir public API server
+
+# Plugins declared in the spec so `openapi2kong` generates them onto the Service.
+# Everything Kong runs for this API therefore derives from this one file.
+x-kong-plugin-rate-limiting:
+  config:
+    minute: 5
+    policy: local
+    limit_by: ip
+x-kong-plugin-opentelemetry:
+  config:
+    traces_endpoint: http://localhost:4318/v1/traces
+    logs_endpoint: http://localhost:4318/v1/logs
+    resource_attributes:
+      service.name: flights-service
+x-kong-plugin-prometheus:
+  config:
+    status_code_metrics: true
+    latency_metrics: true
+    bandwidth_metrics: true
+    upstream_health_metrics: true
+
 paths:
   /health:
     get:
       operationId: get-health
       summary: Health check endpoint
-      description: Returns the service health status.
       responses:
         "200":
           description: Service is healthy
@@ -27,7 +47,6 @@ paths:
     get:
       operationId: get-flights
       summary: List flights
-      description: Returns scheduled KongAir flights, optionally filtered by date.
       parameters:
         - name: flight_date
           in: query

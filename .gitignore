@@ -46,11 +46,12 @@ credentials
 aws-credentials*
 
 # ---------------------------------------------------------------------------
-# OAS -> Terraform pipeline intermediates (scripts/oas-to-tf.sh)
-# The generated stack file (terraform/30-gateway-config/generated_gateway.tf)
-# IS committed by design; only the scratch build dir is ignored.
+# OAS -> Terraform generation (generate.sh). The OAS is the source of truth;
+# the generated Kong config is a CI build artifact and is NOT committed.
 # ---------------------------------------------------------------------------
 konnect/apigw/build/
+**/generated_gateway.tf
+konnect/apigw/terraform/**/build/
 
 # ---------------------------------------------------------------------------
 # Editor / OS noise
