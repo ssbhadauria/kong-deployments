@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars and fill in, OR supply via environment variables.
+# Do NOT commit real tokens.
+#
+#   export TF_VAR_konnect_pat="kpat_xxxxxxxx"
+#   terraform init && terraform apply
+
+# konnect_pat        = "kpat_xxxxxxxx"   # prefer env var TF_VAR_konnect_pat
+konnect_server_url = "https://us.api.konghq.com/"
+aws_region         = "us-east-2"
+name_prefix        = "kong-refresher"
+control_plane_name = "kong-refresher-cp"
+
+tags = {
+  project = "kong-refresher"
+  owner   = "solutions-engineering"
+  env     = "demo"
+}
