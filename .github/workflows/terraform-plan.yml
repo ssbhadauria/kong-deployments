@@ -1,0 +1,51 @@
+name: terraform-plan
+
+on:
+  pull_request:
+    # Trigger path MUST match your main dir. paths: cannot use variables, so this
+    # is one of the few spots hardcoded to konnect/apigw/terraform.
+    paths: ["konnect/apigw/terraform/**"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Detect which stack(s) the PR touched. Emits full-from-repo-root paths like
+  # "konnect/apigw/terraform/10-konnect-platform" so _terraform.yml can use them
+  # directly as working-directory. sort -u gives numeric (dependency) order.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      stacks: ${{ steps.changes.outputs.stacks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changes
+        run: |
+          TF_ROOT="konnect/apigw/terraform"   # <-- change here if the main dir moves
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          dirs=$(git diff --name-only "$BASE" "$HEAD" -- "$TF_ROOT" \
+            | grep "^$TF_ROOT/" \
+            | sed -E "s#^($TF_ROOT/[^/]+)/.*#\1#" \
+            | sort -u \
+            | grep -v '/00-bootstrap$' || true)
+          echo "Changed stacks:"; echo "$dirs"
+          json=$(printf '%s\n' "$dirs" | grep . | jq -R . | jq -sc . || echo '[]')
+          echo "stacks=${json:-[]}" >> "$GITHUB_OUTPUT"
+
+  plan:
+    needs: detect
+    if: ${{ needs.detect.outputs.stacks != '[]' && needs.detect.outputs.stacks != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJson(needs.detect.outputs.stacks) }}
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      stack_dir: ${{ matrix.stack }}
+      apply: false
+    secrets: inherit

@@ -1,0 +1,69 @@
+name: terraform-apply
+
+on:
+  push:
+    branches: [main]
+    paths: ["konnect/apigw/terraform/**"]
+  # Manual, one-stack-at-a-time apply — pass the FULL path from repo root.
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: "Stack to apply, e.g. konnect/apigw/terraform/10-konnect-platform"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      stacks: ${{ steps.changes.outputs.stacks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changes
+        run: |
+          TF_ROOT="konnect/apigw/terraform"   # <-- change here if the main dir moves
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            json=$(printf '%s' '${{ inputs.stack }}' | jq -R . | jq -sc .)
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+            if ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+              BASE="$(git rev-parse HEAD~1 2>/dev/null || echo HEAD)"
+            fi
+            dirs=$(git diff --name-only "$BASE" "$HEAD" -- "$TF_ROOT" \
+              | grep "^$TF_ROOT/" \
+              | sed -E "s#^($TF_ROOT/[^/]+)/.*#\1#" \
+              | sort -u \
+              | grep -v '/00-bootstrap$' || true)
+            json=$(printf '%s\n' "$dirs" | grep . | jq -R . | jq -sc . || echo '[]')
+          fi
+          echo "Applying stacks:"; echo "$json"
+          echo "stacks=${json:-[]}" >> "$GITHUB_OUTPUT"
+
+  gate:
+    needs: detect
+    if: ${{ needs.detect.outputs.stacks != '[]' && needs.detect.outputs.stacks != '' }}
+    runs-on: ubuntu-latest
+    environment: production   # configure required reviewers here
+    steps:
+      - run: echo "Approved apply for ${{ needs.detect.outputs.stacks }}"
+
+  apply:
+    needs: [detect, gate]
+    if: ${{ needs.detect.outputs.stacks != '[]' && needs.detect.outputs.stacks != '' }}
+    strategy:
+      fail-fast: true
+      max-parallel: 1   # sequential; numeric prefixes keep dependency order
+      matrix:
+        stack: ${{ fromJson(needs.detect.outputs.stacks) }}
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      stack_dir: ${{ matrix.stack }}
+      apply: true
+    secrets: inherit

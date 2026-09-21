@@ -1,0 +1,87 @@
+name: _terraform
+
+# Reusable engine: init/fmt/validate/plan for one stack, and apply when asked.
+# Called by terraform-plan.yml (apply=false) and terraform-apply.yml (apply=true).
+
+on:
+  workflow_call:
+    inputs:
+      stack_dir:
+        description: "Stack path, e.g. terraform/10-konnect-platform"
+        required: true
+        type: string
+      apply:
+        description: "Apply the plan (true on main / manual dispatch)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write # assume the AWS role via OIDC
+  contents: read
+  pull-requests: write # post the plan as a PR comment
+
+env:
+  AWS_REGION: us-east-2
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  terraform:
+    name: ${{ inputs.stack_dir }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.stack_dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      - name: Init
+        run: terraform init
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        id: plan
+        env:
+          TF_VAR_konnect_pat: ${{ secrets.KONNECT_TOKEN }}
+        run: terraform plan -out=tfplan -no-color | tee plan.txt
+
+      - name: Post plan to PR
+        if: ${{ inputs.apply == false && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('${{ inputs.stack_dir }}/plan.txt', 'utf8');
+            const MAX = 60000;
+            if (plan.length > MAX) plan = plan.slice(0, MAX) + '\n...(truncated)...';
+            const body = `#### Terraform plan — \`${{ inputs.stack_dir }}\`\n`
+              + `<details><summary>show plan</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n</details>`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Apply
+        if: ${{ inputs.apply == true }}
+        env:
+          TF_VAR_konnect_pat: ${{ secrets.KONNECT_TOKEN }}
+        run: terraform apply -auto-approve tfplan
