@@ -9,10 +9,15 @@ variable "name_prefix" {
   default = "kong-refresher"
 }
 
-variable "github_repo" {
-  description = "GitHub repository allowed to assume the CI role, as ORG/REPO."
+variable "github_org" {
+  description = "GitHub org that owns the repo (used in the OIDC subject match)."
   type        = string
-  # example: "acme-corp/kong-refresher"
+  default     = "Kong"
+}
+
+variable "github_repo_name" {
+  description = "GitHub repository name (no org). e.g. ps-amer-kong-refresher"
+  type        = string
 }
 
 # Fetches GitHub's OIDC cert so the thumbprint is always current.
@@ -45,12 +50,15 @@ data "aws_iam_policy_document" "github_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Restrict to this repo. Tighten further to a branch/environment if desired,
-    # e.g. "repo:${var.github_repo}:ref:refs/heads/main"
+    # NOTE: The Kong GitHub org customizes the OIDC subject claim to embed
+    # internal numeric IDs, so the real `sub` looks like:
+    #   repo:Kong@962416/ps-amer-kong-refresher@1379024548:ref:refs/heads/main
+    # The wildcards below absorb those IDs. A plain "repo:Kong/<repo>:*" will
+    # NOT match and fails with "Not authorized to perform sts:AssumeRoleWithWebIdentity".
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      values   = ["repo:${var.github_org}@*/${var.github_repo_name}@*:*"]
     }
   }
 }
