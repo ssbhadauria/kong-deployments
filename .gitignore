@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# Terraform
+# ---------------------------------------------------------------------------
+# Local provider/plugin cache and working dirs
+**/.terraform/
+.terraform.tfstate.lock.info
+
+# State files — NEVER commit. State lives in S3 (kong-refresher-tfstate).
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Saved plans and the pipeline's plan output
+tfplan
+*.tfplan
+plan.txt
+
+# Variable files may contain secrets (e.g. konnect_pat). Commit only *.example.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local CLI overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# KEEP the dependency lock file committed — it pins provider versions for
+# reproducible plans/applies. It is intentionally NOT ignored:
+# .terraform.lock.hcl   <-- leave this tracked
+
+# ---------------------------------------------------------------------------
+# Secrets / credentials (belt-and-suspenders — none of these belong in git)
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+credentials
+aws-credentials*
+
+# ---------------------------------------------------------------------------
+# OAS -> Terraform pipeline intermediates (scripts/oas-to-tf.sh)
+# The generated stack file (terraform/30-gateway-config/generated_gateway.tf)
+# IS committed by design; only the scratch build dir is ignored.
+# ---------------------------------------------------------------------------
+konnect/apigw/build/
+
+# ---------------------------------------------------------------------------
+# Editor / OS noise
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
