@@ -77,6 +77,14 @@ resource "aws_ecs_task_definition" "dp" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
 
+  # Pin the CPU architecture so BOTH containers pull the matching image variant.
+  # Without this Fargate defaults to X86_64; the OTel collector image otherwise
+  # resolved to arm64 and failed with "exec /otelcol-contrib: no such file".
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
   container_definitions = jsonencode([
     {
       name      = "kong"

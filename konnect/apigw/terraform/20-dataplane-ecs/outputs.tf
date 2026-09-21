@@ -14,3 +14,13 @@ output "ecs_service" {
 output "control_plane_id" {
   value = local.control_plane_id
 }
+
+# Consumed by stack 25: Kong resolves {vault://...} refs at runtime using the
+# TASK role, so stack 25 attaches its GetSecretValue policy to this role.
+output "task_role_name" {
+  value = aws_iam_role.task.name
+}
+
+output "task_role_arn" {
+  value = aws_iam_role.task.arn
+}
