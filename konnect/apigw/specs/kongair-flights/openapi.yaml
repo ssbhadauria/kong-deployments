@@ -18,8 +18,6 @@ x-kong-plugin-opentelemetry:
   config:
     traces_endpoint: http://localhost:4318/v1/traces
     logs_endpoint: http://localhost:4318/v1/logs
-    resource_attributes:
-      service.name: flights-service
 x-kong-plugin-prometheus:
   config:
     status_code_metrics: true
