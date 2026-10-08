@@ -1,0 +1,144 @@
+# =============================================================================
+# PS Copilot — AI Gateway 2.x entities — SOURCE OF TRUTH
+#
+# This file plays the role the OAS spec plays in konnect/apigw: ONE document
+# holding the AI "API specification" (models, routes, MCP servers) AND the
+# Kong policy specifications (policies map 1:1 to plugin types).
+#
+# Pipeline:  ai.yaml --(scripts/ai-to-tf.sh)--> generated_ai_gateway.tf
+#            --> terraform apply (kong/konnect >= 3.23) --> Konnect AI Gateway
+#
+# Secrets are NEVER inlined: "${var.name}" is emitted as a Terraform variable
+# reference by the generator.
+# =============================================================================
+
+ai_gateways:
+  - ref: ps-copilot
+    name: ps-copilot
+    display_name: "PS Copilot Gateway"
+    description: "AI Gateway 2.2 control plane for the PS Copilot agent"
+
+# Upstream LLM providers (the `servers` block equivalent).
+model_providers:
+  - ref: kong-tech-llms
+    name: kong-tech-llms
+    display_name: "cloud.konghq.tech LLMs"
+    type: openai                     # .tech exposes an OpenAI-compatible API
+    config:
+      auth:
+        headers:
+          - name: Authorization
+            value: "${var.tech_llm_api_key}"   # -> var reference in generated TF
+
+# The AI Models (the `paths` + operations equivalent).
+models:
+  - ref: ps-copilot
+    name: ps-copilot
+    display_name: "PS Copilot model"
+    enabled: true
+    capabilities:
+      - generate
+    formats:
+      - type: openai
+    access:
+      auth_strategies:
+        - ps-api-keys
+    policies:
+      - ps-token-budget
+      - ps-prompt-guard
+      - ps-pii-sanitizer
+    config:
+      route:
+        paths: [/ps]
+        model:
+          body_param: model
+          values: [gpt-5.2]          # model id(s) served by the .tech upstream
+    targets:
+      - name: primary
+        provider: kong-tech-llms     # references model_providers[].ref
+        weight: 100
+        config:
+          openai:
+            upstream_url: https://cloud.konghq.tech/llm/v1   # <-- CHANGE ME
+            input_cost: 1.0          # USD per million input tokens (for RLA cost budget)
+            output_cost: 4.0
+            max_tokens: 4096
+            temperature: 0.2
+
+# MCP servers hosted on .tech, fronted by the gateway.
+mcp_servers:
+  - ref: kong-tech-tools
+    name: kong-tech-tools
+    display_name: "Kong .tech tools"
+    enabled: true
+    type: upstream-server            # proxy an existing upstream MCP server
+    config:
+      url: https://cloud.konghq.tech/mcp   # <-- CHANGE ME
+      route:
+        paths: [/mcp/kong-tech]
+    policies:
+      - ps-mcp-rate-limit
+
+# Access (built-in key-auth; one consumer + key per PS engineer, issued in Konnect).
+auth_strategies:
+  - ref: ps-api-keys
+    name: ps-api-keys
+    display_name: "PS engineer API keys"
+    type: key_auth
+    config:
+      key_names: [apikey]
+
+consumer_groups:
+  - name: kong-ps
+    display_name: "Kong PS engineers"
+
+# Policies — each `type` is the plugin of the same name (x-kong-plugin-* equivalent).
+policies:
+  # RLA: cost-based budget per consumer group, per hour.
+  - ref: ps-token-budget
+    name: ps-token-budget
+    display_name: "PS token budget"
+    type: ai-rate-limiting-advanced
+    enabled: true
+    config:
+      identifier: consumer-group
+      window_size: [3600]
+      policies:
+        - match:
+            - type: consumer_group
+              values: [kong-ps]
+          limits:
+            - limit: 5.0
+              tokens_count_strategy: cost
+
+  # Guardrail: block obvious injection/exfiltration attempts.
+  - ref: ps-prompt-guard
+    name: ps-prompt-guard
+    display_name: "PS prompt guard"
+    type: ai-prompt-guard
+    enabled: true
+    config:
+      deny_patterns:
+        - "(?i)ignore (all|any|previous) instructions"
+        - "(?i)(reveal|print|show).*(system prompt|api.?key|secret|password|token)"
+
+  # Guardrail: redact PII before prompts leave for the upstream LLM.
+  - ref: ps-pii-sanitizer
+    name: ps-pii-sanitizer
+    display_name: "PS PII sanitizer"
+    type: ai-sanitizer
+    enabled: true
+    config:
+      sanitize_request: true
+      sanitize_response: false
+
+  # Simple request-rate guard for the MCP route.
+  - ref: ps-mcp-rate-limit
+    name: ps-mcp-rate-limit
+    display_name: "PS MCP rate limit"
+    type: rate-limiting-advanced
+    enabled: true
+    config:
+      limit: [300]
+      window_size: [60]
+      identifier: consumer
