@@ -31,6 +31,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # Do NOT persist the workflow's GITHUB_TOKEN as a git credential:
+          # its extraheader would override the PAT embedded in the push URL
+          # and the push would be denied as github-actions[bot].
+          persist-credentials: false
 
       - name: Push main to the public mirror
         run: |
