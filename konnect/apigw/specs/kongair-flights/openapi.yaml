@@ -11,7 +11,7 @@ servers:
 # Everything Kong runs for this API therefore derives from this one file.
 x-kong-plugin-rate-limiting:
   config:
-    minute: 5
+    minute: 4
     policy: local
     limit_by: ip
 x-kong-plugin-opentelemetry:
