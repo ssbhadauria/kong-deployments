@@ -23,6 +23,12 @@ on:
 permissions:
   contents: read
 
+# Serialize runs: a push-triggered run and a manual dispatch must not race
+# each other pushing to the same ref (loser fails with "cannot lock ref").
+concurrency:
+  group: mirror-public
+  cancel-in-progress: false
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
