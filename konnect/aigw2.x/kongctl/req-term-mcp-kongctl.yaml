@@ -1,0 +1,26 @@
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+ai_gateway_policies:
+- ref: v1-models-termination
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: v1-models-list
+  display_name: /v1/models  
+  type: request-termination
+  config:
+    status_code: 200
+    content_type: application/json
+    body: '{"message":"Welcome to the Kong AI Gateway MCP endpoint"}'
+ai_gateway_mcp_servers:
+- ref: v1-models-mcp
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: v1-models-mcp
+  display_name: v1 models MCP
+  type: passthrough-listener
+  enabled: true
+  policies:
+  - v1-models-welcome
+  config:
+    url: http://unresolvable.invalid
+    route:
+      paths: ["/v1/models"]

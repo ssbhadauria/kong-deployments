@@ -1,0 +1,4 @@
+# Produced by generate.sh on every run — never commit.
+generated_ai_gateway.tf
+.terraform/
+# NOTE: .terraform.lock.hcl stays tracked (repo convention: pins provider versions)

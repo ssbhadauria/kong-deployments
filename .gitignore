@@ -63,3 +63,12 @@ konnect/apigw/terraform/**/build/
 *~
 .DS_Store
 Thumbs.db
+
+# ---------------------------------------------------------------------------
+# Local-only, never for the public mirror (ssbhadauria/kong-deployments)
+# ---------------------------------------------------------------------------
+# Continue.dev IDE agent configs (personal, machine-local)
+.continue/
+# Local data-plane cert material and lab scratch (contains private keys)
+enterprise/
+**/helm/.certs/

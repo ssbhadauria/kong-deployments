@@ -1,0 +1,45 @@
+ingressController:
+  enabled: false
+
+image:
+  repository: kong/kong-ai-gateway
+  tag: "2.2.0"
+
+secretVolumes:
+  - kong-cluster-cert
+
+env:
+  role: data_plane
+  database: "off"
+  konnect_mode: "on"
+  vitals: "off"
+  cluster_mtls: pki
+
+  cluster_control_plane: "9146d23eb2.us.cp.konghq.com:443"
+  cluster_server_name: "9146d23eb2.us.cp.konghq.com"
+  cluster_telemetry_endpoint: "9146d23eb2.us.tp.konghq.com:443"
+  cluster_telemetry_server_name: "9146d23eb2.us.tp.konghq.com"
+  cluster_cert: /etc/secrets/kong-cluster-cert/tls.crt
+  cluster_cert_key: /etc/secrets/kong-cluster-cert/tls.key
+  lua_ssl_trusted_certificate: system
+  proxy_access_log: "off"
+  dns_stale_ttl: "3600"
+
+resources:
+  requests:
+    cpu: 1
+    memory: "2Gi"
+
+proxy:
+  enabled: true
+  type: LoadBalancer
+  http:
+    enabled: true
+    servicePort: 80
+    containerPort: 8000
+
+admin:
+  enabled: false
+
+manager:
+  enabled: false

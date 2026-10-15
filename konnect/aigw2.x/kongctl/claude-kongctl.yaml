@@ -1,0 +1,62 @@
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+
+ai_gateway_model_providers:
+- ref: anthropic-provider
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: anthropic-provider
+  display_name: Anthropic
+  type: anthropic
+  config:
+    auth:
+      type: basic
+      headers:
+      - name: x-api-key
+        value: !secret {source: !env 'ANTHROPIC_API_KEY'}
+
+ai_gateway_auth_strategies:
+- ref: claude-key-auth
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: claude-key-auth
+  display_name: Claude Key Auth
+  type: key-auth
+  config:
+    key_names: [x-api-key]
+    hide_credentials: true
+
+ai_gateway_consumers:
+- ref: claude-desktop
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: claude-desktop
+  display_name: Claude Desktop
+  custom_id: claude-desktop
+  type: api-key
+  credentials:
+  - ref: claude-desktop-key
+    name: claude-desktop-key
+    display_name: Claude Desktop Key
+    type: api-key
+    api_key: !secret {source: !env 'CONSUMER_API_KEY'}
+
+ai_gateway_models:
+- ref: claude-model
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: claude-model
+  display_name: Claude
+  type: model
+  formats: [{type: anthropic}]
+  capabilities: [generate]
+  access:
+    auth_strategies:
+    - claude-key-auth
+  config:
+    response_streaming: allow
+    route:
+      paths: [/]
+      protocols: [http, https]
+      model: {body_param: model, values: [claude]}
+  targets:
+  - name: claude-sonnet-4-6    # real upstream model id (verify against your access)
+    provider: anthropic-provider
+    config: {type: anthropic}

@@ -1,0 +1,43 @@
+name: Mirror to public repo
+
+# One-way sync: this private repo (source of truth) -> public customer-facing
+# repo (personal account). Runs on every push to main, nightly to self-heal
+# drift, and on demand.
+#
+# Setup (one time):
+#   1. Create a fine-grained PAT on the personal account scoped to ONLY the
+#      public repo, with Contents: Read and write.
+#   2. In THIS repo: Settings -> Secrets -> add PUBLIC_MIRROR_PAT = <pat>
+#                        Settings -> Variables -> add PUBLIC_REPO = github.com/<owner>/kong-deployments
+#   3. Treat the public repo as read-only (no direct pushes/PRs) — this
+#      workflow intentionally uses a plain push, so an out-of-band public
+#      commit makes the sync FAIL LOUDLY instead of silently overwriting it.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push main to the public mirror
+        run: |
+          git config user.name "mirror-bot"
+          git config user.email "mirror-bot@users.noreply.github.com"
+          git remote add public "https://x-access-token:${PUBLIC_MIRROR_PAT}@${PUBLIC_REPO}"
+          git push public main:main
+        env:
+          PUBLIC_MIRROR_PAT: ${{ secrets.PUBLIC_MIRROR_PAT }}
+          PUBLIC_REPO: ${{ vars.PUBLIC_REPO }}

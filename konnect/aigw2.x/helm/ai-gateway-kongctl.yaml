@@ -1,0 +1,72 @@
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+ai_gateways:
+- ref: ai-gateway-kongctl-cp
+  id: !env 'AI_GATEWAY_ID'
+  name: ai-gateway-kongctl-cp
+  display_name: ai-gateway-kongctl-cp
+ai_gateway_model_providers:
+- ref: gemini-provider
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-provider
+  display_name: Gemini
+  type: gemini
+  config:
+    auth:
+      type: basic
+      headers:
+      - name: x-goog-api-key
+        value: !env 'GEMINI_API_KEY'
+ai_gateway_models:
+- ref: gemini-flash
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-flash
+  display_name: Gemini Flash
+  type: model
+  formats: [{type: openai}]
+  capabilities: [generate]
+  config:
+    response_streaming: allow
+    route:
+      paths: [/v1]
+      protocols: [http, https]
+      model: {body_param: model, values: [flash]}
+  targets:
+  - name: gemini-flash-latest
+    provider: gemini-provider
+    config: {type: gemini}
+- ref: gemini-pro
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-pro
+  display_name: Gemini Pro
+  type: model
+  formats: [{type: openai}]
+  capabilities: [generate]
+  config:
+    response_streaming: allow
+    route:
+      paths: [/v1]
+      protocols: [http, https]
+      model: {body_param: model, values: [pro]}
+  targets:
+  - name: gemini-pro-latest
+    provider: gemini-provider
+    config: {type: gemini}
+- ref: gemini-flash-lite
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-flash-lite
+  display_name: Gemini Flash Lite
+  type: model
+  formats: [{type: openai}]
+  capabilities: [generate]
+  config:
+    response_streaming: allow
+    route:
+      paths: [/v1]
+      protocols: [http, https]
+      model: {body_param: model, values: [flash-lite]}
+  targets:
+  - name: gemini-flash-lite-latest
+    provider: gemini-provider
+    config: {type: gemini}
