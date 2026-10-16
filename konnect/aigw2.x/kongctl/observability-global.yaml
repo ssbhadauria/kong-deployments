@@ -1,0 +1,60 @@
+# =============================================================================
+# GLOBAL observability policies (kongctl track) — mirrors the global policies
+# in specs/ps-copilot/ai.yaml (TF track). Keep the two in sync; the spec is
+# the source of truth and this file is generated/maintained alongside it.
+#
+# Apply:
+#   kongctl apply -f observability-global.yaml -o text --auto-approve
+#
+# PLACEHOLDERS: log/trace endpoints are 127.0.0.1 until the collector is chosen.
+# =============================================================================
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+
+ai_gateway_policies:
+  # Prometheus: AI Gateway LLM metrics (tokens, cost, latency per
+  # model/provider/consumer) + recommended standard metrics.
+  - ref: global-prometheus
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    name: global-prometheus
+    display_name: Global Prometheus (AI + standard metrics)
+    type: prometheus
+    enabled: true
+    global: true
+    config:
+      ai_metrics: true
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+
+  # http-log: ship request/response logs to a collector. PLACEHOLDER endpoint.
+  - ref: global-http-log
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    name: global-http-log
+    display_name: Global HTTP log (placeholder endpoint)
+    type: http-log
+    enabled: true
+    global: true
+    config:
+      http_endpoint: http://127.0.0.1:8080/logs   # <-- PLACEHOLDER
+      method: POST
+      content_type: application/json
+      timeout: 10000
+      keepalive: 60000
+      flush_timeout: 2
+      queue_size: 1
+      retry_count: 10
+
+  # OpenTelemetry: traces + logs to an OTLP collector. PLACEHOLDER endpoints.
+  - ref: global-opentelemetry
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    name: global-opentelemetry
+    display_name: Global OpenTelemetry (placeholder endpoints)
+    type: opentelemetry
+    enabled: true
+    global: true
+    config:
+      traces_endpoint: http://127.0.0.1:4318/v1/traces   # <-- PLACEHOLDER
+      logs_endpoint: http://127.0.0.1:4318/v1/logs       # <-- PLACEHOLDER

@@ -142,3 +142,52 @@ policies:
       limit: [300]
       window_size: [60]
       identifier: consumer
+
+# =============================================================================
+# GLOBAL observability — applies to every route on the gateway.
+# =============================================================================
+
+  # Prometheus: AI Gateway LLM metrics (tokens, cost, latency per
+  # model/provider/consumer) + the recommended standard metrics.
+  - ref: global-prometheus
+    name: global-prometheus
+    display_name: "Global Prometheus (AI + standard metrics)"
+    type: prometheus
+    enabled: true
+    global: true
+    config:
+      ai_metrics: true
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+
+  # http-log: ship request/response logs. PLACEHOLDER endpoint (127.0.0.1) —
+  # point at the real collector when chosen.
+  - ref: global-http-log
+    name: global-http-log
+    display_name: "Global HTTP log (placeholder endpoint)"
+    type: http-log
+    enabled: true
+    global: true
+    config:
+      http_endpoint: http://127.0.0.1:8080/logs   # <-- PLACEHOLDER
+      method: POST
+      content_type: application/json
+      timeout: 10000
+      keepalive: 60000
+      flush_timeout: 2
+      queue_size: 1
+      retry_count: 10
+
+  # OpenTelemetry: traces + logs. PLACEHOLDER endpoints (127.0.0.1) —
+  # point at the real OTLP collector when chosen.
+  - ref: global-opentelemetry
+    name: global-opentelemetry
+    display_name: "Global OpenTelemetry (placeholder endpoints)"
+    type: opentelemetry
+    enabled: true
+    global: true
+    config:
+      traces_endpoint: http://127.0.0.1:4318/v1/traces   # <-- PLACEHOLDER
+      logs_endpoint: http://127.0.0.1:4318/v1/logs       # <-- PLACEHOLDER

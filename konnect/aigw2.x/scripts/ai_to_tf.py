@@ -149,6 +149,7 @@ def gen(spec_path: str) -> str:
             "gateway_id": GATEWAY_ID,
             "type": p["type"],
             "enabled": p.get("enabled"),
+            "global": p.get("global"),
             "config": Raw(f"jsonencode({hcl(p.get('config', {}), 1)})"),
         }
         out.append(resource("konnect_ai_gateway_policy", f"pol_{tf_safe(p['ref'])}", body))

@@ -1,0 +1,93 @@
+name: kongctl GitOps (aigw2.x)
+
+# GitOps for the kongctl track: konnect/aigw2.x/kongctl/*.yaml
+#   PR        -> kongctl diff   (plan preview)
+#   main push -> kongctl apply  (reconcile the AI Gateway to the files)
+#
+# One-time prerequisites:
+#   1. Repo variable  AI_GATEWAY_ID   = your AI Gateway 2.x control plane ID
+#      (Settings -> Variables). Needed by every file's
+#      `ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}`.
+#   2. Repo secret KONNECT_TOKEN = Konnect PAT (already present for TF stacks).
+#   3. The gateway adopted into the kongctl namespace ONCE, manually:
+#        kongctl adopt ai-gateway "<gateway-name>" --namespace ai-gateway-kongctl
+#   4. Files that use `!secret {source: !env 'VAR'}` need a matching repo
+#      secret AND must be added to the apply loop deliberately — sample files
+#      are skipped via KONGCTL_SKIP below.
+
+on:
+  pull_request:
+    paths:
+      - "konnect/aigw2.x/kongctl/**"
+      - ".github/workflows/kongctl-gitops.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "konnect/aigw2.x/kongctl/**"
+      - ".github/workflows/kongctl-gitops.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kongctl-aigw2x
+  cancel-in-progress: false
+
+env:
+  KONGCTL_VERSION: "1.20.2"
+  KONGCTL_DIR: konnect/aigw2.x/kongctl
+  KONGCTL_DEFAULT_KONNECT_PAT: ${{ secrets.KONNECT_TOKEN }}
+  KONGCTL_DEFAULT_KONNECT_REGION: us
+  AI_GATEWAY_ID: ${{ vars.AI_GATEWAY_ID }}
+  # Sample files: claude/gemini use !secret env vars not injected in CI,
+  # req-term-mcp is a demo entity — skip all three; production files apply.
+  KONGCTL_SKIP: "claude-kongctl.yaml|gemini-kongctl.yaml|req-term-mcp-kongctl.yaml"
+
+jobs:
+  diff:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kongctl
+        run: |
+          curl -sSL "https://github.com/Kong/kongctl/releases/download/v${KONGCTL_VERSION}/kongctl_${KONGCTL_VERSION}_linux_amd64.tar.gz" | tar -xz -C /tmp kongctl
+          sudo mv /tmp/kongctl /usr/local/bin/kongctl
+          kongctl version
+
+      - name: kongctl diff (plan preview)
+        run: |
+          for f in ${KONGCTL_DIR}/*.yaml; do
+            if [[ "$(basename "$f")" =~ ${KONGCTL_SKIP} ]]; then
+              echo "== SKIP $f"; continue
+            fi
+            echo "== DIFF $f"
+            # diff exits non-zero when changes exist; we want the preview, not a gate
+            kongctl diff -f "$f" || true
+          done
+        shell: bash
+
+  apply:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kongctl
+        run: |
+          curl -sSL "https://github.com/Kong/kongctl/releases/download/v${KONGCTL_VERSION}/kongctl_${KONGCTL_VERSION}_linux_amd64.tar.gz" | tar -xz -C /tmp kongctl
+          sudo mv /tmp/kongctl /usr/local/bin/kongctl
+          kongctl version
+
+      - name: kongctl apply
+        run: |
+          for f in ${KONGCTL_DIR}/*.yaml; do
+            if [[ "$(basename "$f")" =~ ${KONGCTL_SKIP} ]]; then
+              echo "== SKIP $f"; continue
+            fi
+            echo "== APPLY $f"
+            kongctl apply -f "$f" -o text --auto-approve
+          done
+        shell: bash
