@@ -1,0 +1,102 @@
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+
+ai_gateway_model_providers:
+- ref: gemini-provider
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-provider
+  display_name: Gemini
+  type: gemini
+  config:
+    auth:
+      type: basic
+      headers:
+      - name: x-goog-api-key
+        value: !secret {source: !env 'GEMINI_API_KEY'}
+
+ai_gateway_auth_strategies:
+- ref: gemini-key-auth
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-key-auth
+  display_name: Gemini Key Auth
+  type: key-auth
+  config:
+    key_names: [x-api-key, apikey, authorization]
+    hide_credentials: true
+
+ai_gateway_consumers:
+- ref: demo-consumer
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: demo-consumer
+  display_name: Demo Consumer (x-api-key)
+  custom_id: demo-consumer
+  type: api-key
+  credentials:
+  - ref: demo-consumer-key
+    name: demo-consumer-key
+    display_name: Demo Consumer Key
+    type: api-key
+    api_key: !secret {source: !env 'CONSUMER_API_KEY'}
+- ref: bearer-consumer
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: bearer-consumer
+  display_name: Bearer Consumer (Jan, Chatbox)
+  custom_id: bearer-consumer
+  type: api-key
+  credentials:
+  - ref: bearer-consumer-key
+    name: bearer-consumer-key
+    display_name: Bearer Consumer Key
+    type: api-key
+    api_key: !secret {source: !env 'BEARER_KEY'}
+
+ai_gateway_models:
+- ref: gemini-flash
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-flash
+  display_name: Gemini Flash
+  type: model
+  formats: [{type: openai}]
+  capabilities: [generate]
+  access: {auth_strategies: [gemini-key-auth]}
+  config:
+    response_streaming: allow
+    route:
+      paths: [/v1]
+      protocols: [http, https]
+      model: {body_param: model, values: [flash]}
+  targets:
+  - {name: gemini-flash-latest, provider: gemini-provider, config: {type: gemini}}
+- ref: gemini-pro
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-pro
+  display_name: Gemini Pro
+  type: model
+  formats: [{type: openai}]
+  capabilities: [generate]
+  access: {auth_strategies: [gemini-key-auth]}
+  config:
+    response_streaming: allow
+    route:
+      paths: [/v1]
+      protocols: [http, https]
+      model: {body_param: model, values: [pro]}
+  targets:
+  - {name: gemini-pro-latest, provider: gemini-provider, config: {type: gemini}}
+- ref: gemini-flash-lite
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gemini-flash-lite
+  display_name: Gemini Flash Lite
+  type: model
+  formats: [{type: openai}]
+  capabilities: [generate]
+  access: {auth_strategies: [gemini-key-auth]}
+  config:
+    response_streaming: allow
+    route:
+      paths: [/v1]
+      protocols: [http, https]
+      model: {body_param: model, values: [flash-lite]}
+  targets:
+  - {name: gemini-flash-lite-latest, provider: gemini-provider, config: {type: gemini}}
