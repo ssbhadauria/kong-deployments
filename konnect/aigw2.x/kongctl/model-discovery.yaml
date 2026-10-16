@@ -1,0 +1,68 @@
+# =============================================================================
+# Tier 1 — Model discovery endpoint (GET /v1/models) for third-party inference
+# clients (Claude Desktop "Test connection" + model autodiscovery).
+#
+# Pattern: passthrough-listener MCP server + request-termination serving a
+# static 200 catalog. Termination fires in the access phase, so the upstream
+# URL is never contacted. This is the same pattern as the "Static response
+# with Request Termination" section of your Route-Claude-Desktop doc.
+#
+# Apply:
+#   kongctl apply -f model-discovery.yaml -o text --auto-approve --pat "$KONNECT_TOKEN"
+#
+# Test:
+#   curl -s -i "https://<DP_HOST>/v1/models" -H "x-api-key: $CONSUMER_API_KEY"
+#   expect: 200, application/json, the catalog body
+# =============================================================================
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+
+ai_gateway_policies:
+  # --- The static model catalog ---------------------------------------------
+  # IMPORTANT: this is a STATIC list. It must mirror the models actually
+  # configured on this gateway (each model's route.model.values alias is the
+  # `id` clients will send). Regenerate it whenever models change — e.g. from
+  #   kongctl get ai_gateway_models -o json
+  # (or from your source-of-truth specs). Until then, it can drift.
+  - ref: v1-models-catalog
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    name: v1-models-catalog          # no slashes allowed in policy names
+    display_name: /v1/models static catalog
+    type: request-termination
+    config:
+      status_code: 200
+      content_type: application/json
+      body: '{"data":[{"id":"claude","type":"model","display_name":"Claude (via Kong)","created_at":"2026-01-01T00:00:00Z"},{"id":"flash","type":"model","display_name":"Gemini Flash (via Kong)","created_at":"2026-01-01T00:00:00Z"},{"id":"pro","type":"model","display_name":"Gemini Pro (via Kong)","created_at":"2026-01-01T00:00:00Z"},{"id":"flash-lite","type":"model","display_name":"Gemini Flash Lite (via Kong)","created_at":"2026-01-01T00:00:00Z"}],"first_id":"claude","last_id":"flash-lite","has_more":false}'
+
+  # --- Gate discovery with the same key as inference ------------------------
+  # MCP server entities don't take access.auth_strategies, so attach key-auth
+  # as a policy (same approach as the kong-claude reference repo's OIDC policy
+  # on its models endpoint). Claude Desktop sends its configured auth scheme
+  # (x-api-key) on the discovery call too.
+  - ref: v1-models-key-auth
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    name: v1-models-key-auth
+    display_name: /v1/models key auth
+    type: key-auth
+    config:
+      key_names: [x-api-key]
+      hide_credentials: true
+
+ai_gateway_mcp_servers:
+  - ref: dummy-v1-models
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    # LOAD-BEARING NAME: keep the "dummy" prefix. If you later add the Tier 2
+    # model-auth pre-function, it special-cases route names starting with
+    # "dummy" as discovery routes (route names derive from the entity name).
+    name: dummy-v1-models
+    display_name: Model discovery endpoint
+    type: passthrough-listener
+    enabled: true
+    policies:
+      - v1-models-key-auth
+      - v1-models-catalog
+    config:
+      url: http://unresolvable.invalid   # never contacted; termination returns first
+      route:
+        paths: ["/v1/models"]

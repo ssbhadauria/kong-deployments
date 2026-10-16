@@ -8,24 +8,42 @@ classic services/routes/plugins.
 
 ## Structure
 
+One folder per tool. `specs/` is the shared source of truth; each IaC tool
+deploys from it through its own pipeline.
+
 ```
 aigw2.x/
 ├── README.md                        ← this file
 ├── docs/
 │   └── mental-model.md              # apigw ↔ aigw2.x mapping + schema quirks
-├── specs/
+├── specs/                           # SOURCE OF TRUTH (shared by both tools)
 │   └── ps-copilot/
-│       └── ai.yaml                  # SOURCE OF TRUTH: models, model_providers,
-│                                    # mcp_servers, policies, auth, consumer groups
+│       └── ai.yaml                  # models, model_providers, mcp_servers,
+│                                    # policies, auth, consumer groups
 ├── scripts/
-│   ├── ai-to-tf.sh                  # pipeline entrypoint (mirrors apigw oas-to-tf.sh)
+│   ├── ai-to-tf.sh                  # TF pipeline entrypoint (mirrors apigw oas-to-tf.sh)
 │   └── ai_to_tf.py                  # ai.yaml → HCL generator
-└── terraform/
-    └── 30-ai-gateway-config/        # the deployable stack
-        ├── main.tf                  #   konnect_ai_gateway control plane
-        ├── generate.sh              #   regenerates generated_ai_gateway.tf
-        └── generated_ai_gateway.tf  #   (gitignored — built from the spec)
+│
+├── terraform/                       # TOOL 1: Terraform-managed entities
+│   └── 30-ai-gateway-config/        #   (kong/konnect >= 3.23 provider)
+│       ├── main.tf                  #   konnect_ai_gateway control plane
+│       ├── generate.sh              #   regenerates generated_ai_gateway.tf
+│       └── generated_ai_gateway.tf  #   (gitignored — built from the spec)
+│
+├── kongctl/                         # TOOL 2: kongctl-managed configs
+│   ├── model-discovery.yaml         #   /v1/models static catalog endpoint (Tier 1)
+│   ├── model-discovery-grants.yaml  #   per-caller grants filter (Tier 2, OIDC-era)
+│   ├── claude-kongctl.yaml          #   Claude provider/model/key-auth sample
+│   └── req-term-mcp-kongctl.yaml    #   request-termination MCP sample
+│
+└── helm/                            # data plane deployment values (2.2 DP)
+    └── 2.x-values.yaml
 ```
+
+**Which tool for what?** Default: Terraform (stack 30) for gateway entities —
+state, plan diffs, and the generate-from-spec pipeline. kongctl for the
+discovery endpoint and experiments. One rule for both: **entity definitions
+live in `specs/`; never edit Konnect out-of-band.**
 
 ## The loop
 

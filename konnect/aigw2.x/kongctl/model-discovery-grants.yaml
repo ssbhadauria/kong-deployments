@@ -1,0 +1,206 @@
+# =============================================================================
+# Tier 2 — Per-caller model authorization + dynamic discovery filtering
+# (adapted from the eng team's model-auth / build-ai-v1-models policies)
+#
+# USE THIS ONLY WHEN ALL OF THESE ARE TRUE:
+#   1. Callers authenticate with OIDC bearer JWTs (Claude client "Interactive
+#      sign-in" via Okta), NOT static API keys. The gate reads the
+#      `granted_models` claim from the token.
+#   2. An openid-connect auth strategy (or OIDC policy) validates the same
+#      token's SIGNATURE on every route this pre-function protects. This file
+#      deliberately does not verify signatures — remove OIDC and the gate
+#      becomes bypassable.
+#   3. The data plane runs with untrusted_lua=allow (the Lua uses kong.router
+#      and kong.ctx.shared, which are outside the default sandbox).
+#   4. Naming conventions hold (route names derive from entity names):
+#      - Model entities are named  <family>-<variant>   (kimi-k3 -> "kimi",
+#        claude-opus-5 -> "claude"); the claim must carry those family tokens.
+#      - The discovery listener is named dummy-* (already true from Tier 1).
+#
+# ATTACHMENT (this file only creates the policies):
+#   - Every model entity:           policies: [model-auth, ...existing...]
+#   - dummy-v1-models MCP server:   policies: [model-auth, v1-models-catalog,
+#                                              v1-models-filter]
+#     (swap v1-models-key-auth for an openid-connect policy on the server)
+#
+# Apply:  kongctl apply -f model-discovery-grants.yaml -o text --auto-approve --pat "$KONNECT_TOKEN"
+# =============================================================================
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+
+ai_gateway_policies:
+  # ---------------------------------------------------------------------------
+  # model-auth (pre-function, access phase): per-model authorization gate.
+  # Non-global: attach to every model it must protect. The required family is
+  # derived from the matched ROUTE NAME, so one instance covers all models.
+  # Discovery routes (dummy*) skip the family gate but still require a valid
+  # same-issuer bearer JWT and publish granted_models for the post-function.
+  # FAIL-CLOSED: any error in the check denies. kong.response.exit is called
+  # outside the pcall on purpose (pcall would swallow the ngx exit longjmp).
+  # ---------------------------------------------------------------------------
+  - ref: model-auth
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    name: model-auth
+    display_name: Model authorization (granted_models gate)
+    type: pre-function
+    config:
+      access:
+        - |
+          local EXPECTED_ISSUER = "https://konghq.okta.com/oauth2/default"
+
+          -- Family = leading segment of the route (model) name, cut at the
+          -- first dash:  kimi-k3 -> "kimi", claude-opus-5 -> "claude".
+          local function model_family(name)
+            if type(name) ~= "string" or name == "" then return nil end
+            return name:match("^(.-)%-") or name
+          end
+
+          -- Returns nil to allow, or a verdict {status, message, reason}.
+          local function authorize()
+            local auth = kong.request.get_headers()["authorization"]
+            local token = type(auth) == "string" and auth:match("^[Bb]earer%s+(%S+)$")
+            if not token then
+              return { status = 401, message = "Unauthorized",
+                       reason = "missing or malformed Authorization: Bearer header" }
+            end
+
+            local parts, n = {}, 0
+            for p in token:gmatch("[^%.]+") do n = n + 1 parts[n] = p end
+            if n ~= 3 then
+              return { status = 401, message = "Unauthorized",
+                       reason = "bearer token is not a JWT" }
+            end
+
+            local cjson = require("cjson.safe")
+            local raw = require("ngx.base64").decode_base64url(parts[2])
+            local claims = raw and cjson.decode(raw)
+            if type(claims) ~= "table" then
+              return { status = 401, message = "Unauthorized",
+                       reason = "undecodable JWT payload" }
+            end
+
+            if claims["iss"] ~= EXPECTED_ISSUER then
+              return { status = 401, message = "Unauthorized",
+                       reason = "unexpected issuer: " .. tostring(claims["iss"]) }
+            end
+
+            local granted = claims["granted_models"]
+            if type(granted) ~= "table" then
+              return { status = 403, message = "Forbidden",
+                       reason = "claim granted_models is missing or not an array" }
+            end
+
+            -- Discovery routes: publish the claim, skip the family gate.
+            local route = kong.router.get_route()
+            local name = route and route.name
+            if type(name) == "string" and name:sub(1, #"dummy") == "dummy" then
+              kong.ctx.shared.granted_models = granted
+              return nil
+            end
+
+            local family = model_family(name)
+            if not family then
+              return { status = 403, message = "Forbidden",
+                       reason = "cannot determine the requested model from the route" }
+            end
+
+            for _, model in ipairs(granted) do
+              if model == family then
+                kong.ctx.shared.granted_models = granted
+                kong.ctx.shared.model_family = family
+                return nil
+              end
+            end
+            return { status = 403, message = "Forbidden",
+                     reason = "claim granted_models does not include " .. family }
+          end
+
+          local ok, verdict = pcall(authorize)
+          if not ok then
+            pcall(function()
+              kong.log.err("[model-auth] check raised: ", tostring(verdict))
+            end)
+            verdict = { status = 401, message = "Unauthorized",
+                        reason = "authorization check raised an error" }
+          end
+
+          if verdict then
+            kong.log.warn("[model-auth] denied (", verdict.status, "): ", verdict.reason)
+            return kong.response.exit(verdict.status, { message = verdict.message })
+          end
+
+  # ---------------------------------------------------------------------------
+  # v1-models-filter (post-function, body_filter): rewrites the static catalog
+  # served by request-termination down to ONLY the families in the caller's
+  # granted_models (published by model-auth). FAIL-CLOSED: no grant context or
+  # any error -> empty list. Idempotent via ngx.ctx guard (body_filter can run
+  # more than once per response).
+  # ---------------------------------------------------------------------------
+  - ref: v1-models-filter
+    ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+    name: v1-models-filter
+    display_name: /v1/models granted_models filter
+    type: post-function
+    config:
+      body_filter:
+        - |
+          local function empty_list()
+            return '{"data":[],"first_id":null,"has_more":false,"last_id":null}'
+          end
+
+          local ok, err = pcall(function()
+            if ngx.ctx.models_filtered then return end
+            ngx.ctx.models_filtered = true
+
+            local raw = kong.response.get_raw_body()
+            if type(raw) ~= "string" or raw == "" then return end
+            local cjson = require("cjson.safe")
+            local body = cjson.decode(raw)
+            if type(body) ~= "table" or type(body.data) ~= "table" then
+              kong.log.err("[models-filter] served body is not a models list")
+              kong.response.set_raw_body(empty_list())
+              return
+            end
+
+            local allow = {}
+            local granted = kong.ctx.shared and kong.ctx.shared.granted_models
+            if type(granted) == "table" then
+              for _, family in ipairs(granted) do
+                if type(family) == "string" then allow[family:lower()] = true end
+              end
+            end
+
+            -- Family of a catalog id: leading alphabetic of the leaf segment.
+            --   moonshotai/Kimi-K3 -> kimi, deepseek-ai/DeepSeek-V4 -> deepseek
+            local function family_of(id)
+              if type(id) ~= "string" then return nil end
+              local leaf = id:match("([^/]+)$") or id
+              local head = leaf:match("^([%a]+)")
+              return head and head:lower() or nil
+            end
+
+            local total = #body.data
+            local kept, first, last = {}, nil, nil
+            for _, model in ipairs(body.data) do
+              if type(model) == "table" and allow[family_of(model.id)] then
+                kept[#kept + 1] = model
+                first = first or model.id
+                last = model.id
+              end
+            end
+
+            body.data = kept
+            body.first_id = first or cjson.null
+            body.last_id = last or cjson.null
+            body.has_more = false
+
+            local out = cjson.encode(body)
+            kong.response.set_raw_body(out or empty_list())
+            kong.log.notice("[models-filter] serving ", #kept, " of ", total, " models")
+          end)
+
+          if not ok then
+            pcall(function() kong.log.err("[models-filter] raised: ", tostring(err)) end)
+            pcall(function() kong.response.set_raw_body(empty_list()) end)
+          end
