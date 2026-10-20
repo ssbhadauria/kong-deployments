@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Route Claude Desktop through Kong AI Gateway</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:wght@300;400;700;800&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: dark;
+  --navy:#001408; --panel:#0a1b10; --panel-2:#06160c;
+  --lime:#CCFF00; --bay:#CDD4CB; --white:#FFFFFF;
+  --g300:#B7BDB5; --g400:#A1A69F; --g500:#858983;
+  --line:#313919; --cross:#54660A; --code-bg:#06120a;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:24px}
+body{
+  margin:0;
+  background:
+    linear-gradient(0deg, rgba(0,20,8,0.96), rgba(0,20,8,0.96)),
+    repeating-linear-gradient(0deg, transparent 0 39px, var(--line) 39px 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, var(--line) 39px 40px),
+    var(--navy);
+  color:var(--bay);
+  font-family:"Funnel Sans", system-ui, sans-serif;
+  font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+}
+.wrap{max-width:880px;margin:0 auto;padding:40px 28px 80px}
+header.masthead{display:flex;align-items:center;gap:20px;padding-bottom:28px;margin-bottom:8px;border-bottom:1px solid var(--line)}
+header.masthead img{height:34px;width:auto;display:block}
+.product-tag{font-weight:400;color:var(--bay);font-size:18px;padding-left:16px;border-left:1px solid var(--g500)}
+.product-tag b{color:var(--lime);font-weight:800}
+h1{font-weight:800;color:var(--white);font-size:36px;line-height:1.12;letter-spacing:-0.01em;margin:34px 0 10px}
+.lede{font-size:18px;color:var(--g300);max-width:64ch;margin:0 0 8px}
+.seclabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--lime);margin:46px 0 6px}
+h2{font-weight:700;color:var(--white);font-size:24px;margin:2px 0 14px}
+h3{font-weight:700;color:var(--white);font-size:17px;margin:26px 0 8px}
+p{margin:0 0 14px}
+a{color:var(--lime)}
+.step{display:flex;align-items:baseline;gap:12px;margin:46px 0 14px}
+.step .num{font-family:"Roboto Mono",monospace;font-weight:700;font-size:13px;color:var(--navy);background:var(--lime);border-radius:999px;min-width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;transform:translateY(2px)}
+.step h2{margin:0}
+ul.checks{list-style:none;padding:0;margin:0 0 10px}
+ul.checks li{position:relative;padding:8px 0 8px 32px;border-bottom:1px solid var(--line)}
+ul.checks li:last-child{border-bottom:none}
+ul.checks li .mk{position:absolute;left:0;top:8px;font-weight:700}
+ul.checks li.have .mk{color:var(--lime)}
+ul.checks li.need .mk{color:var(--g500)}
+ul.checks li b{color:var(--white);font-weight:700}
+.grouphdr{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--g400);margin:22px 0 6px}
+.code{background:var(--code-bg);border:1px solid var(--line);border-radius:4px;margin:14px 0 18px;overflow:hidden}
+.code .bar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:0.04em;color:var(--g400);text-transform:uppercase}
+.code .bar .dot{width:7px;height:7px;border-radius:999px;background:var(--cross)}
+.code pre{margin:0;padding:16px 18px;overflow-x:auto;font-family:"Roboto Mono",monospace;font-size:12.5px;line-height:1.65;color:#d9e6cf;white-space:pre}
+.code pre .c{color:var(--g500)}
+.code pre .k{color:var(--lime)}
+.code pre .s{color:#b7d98a}
+.note{border:1px solid var(--line);border-left:3px solid var(--lime);border-radius:4px;background:var(--panel-2);padding:12px 16px;margin:16px 0;font-size:14.5px;color:var(--g300)}
+.note b{color:var(--white)}
+.warn{border:1px solid var(--line);border-left:3px solid #d8b400;border-radius:4px;background:var(--panel-2);padding:12px 16px;margin:16px 0;font-size:14.5px;color:var(--g300)}
+.warn b{color:#f0d44a}
+.result{border:1px solid var(--line);border-radius:4px;overflow:hidden;margin:14px 0}
+.result div{padding:12px 16px;border-bottom:1px solid var(--line);font-size:14.5px}
+.result div:last-child{border-bottom:none}
+.result code{font-family:"Roboto Mono",monospace;color:var(--lime);font-size:13px}
+code.inline{font-family:"Roboto Mono",monospace;font-size:13px;color:var(--bay);background:var(--panel-2);padding:1px 6px;border-radius:3px}
+table.kv{border-collapse:collapse;width:100%;margin:14px 0 18px;font-size:14.5px}
+table.kv th,table.kv td{text-align:left;padding:9px 14px;border:1px solid var(--line);vertical-align:top}
+table.kv th{color:var(--g400);font-weight:700;background:var(--panel-2);width:34%}
+table.kv td{color:var(--bay)}
+table.kv td code{font-family:"Roboto Mono",monospace;color:var(--lime);font-size:13px}
+footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:var(--g500)}
+footer b{color:var(--g400);font-weight:700}
+@media (max-width:560px){h1{font-size:28px}.wrap{padding:28px 18px 60px}.product-tag{font-size:15px}table.kv th{width:42%}}
+.code .bar{position:relative}.copy-btn{margin-left:auto;font-family:"Funnel Sans",system-ui,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--g400);background:transparent;border:1px solid var(--line);border-radius:3px;padding:3px 10px;cursor:pointer;line-height:1.4;transition:color .15s,border-color .15s,background .15s}.copy-btn:hover,.copy-btn.copied{color:var(--navy);background:var(--lime);border-color:var(--lime)}.copy-btn:active{transform:translateY(1px)}</style>
+</head>
+<body>
+<div class="wrap">
+<header class="masthead"><img src="data:image/png;base64,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" alt="Kong"><span class="product-tag"><b>Kong</b> AI Gateway</span></header>
+
+  <h1>Route Claude Desktop through Kong AI Gateway</h1>
+  <p class="lede">Point Claude Desktop at a Kong AI Gateway that serves Claude models by family (Opus, Sonnet, Haiku), authenticated with a static API key or with Microsoft Entra ID (OIDC). The gateway holds the real Anthropic credential; Claude Desktop only ever talks to the gateway.</p>
+
+  <div class="seclabel">Objective</div>
+  <h2>What this gets you</h2>
+  <p>Claude Desktop normally talks straight to Anthropic. Third-party inference redirects it to a gateway you run. Routed through Kong, you get one place for the Anthropic credential, version pinning per model family, usage visibility, and policy. This guide sets up two inbound credential kinds side by side: a <b style="color:var(--white)">Static API key</b> (key-auth) and <b style="color:var(--white)">Entra ID bearer tokens</b> (an <code class="inline">openid-connect</code> auth strategy). A request is accepted if it satisfies either one.</p>
+
+  <div class="note"><b>Claude Desktop only runs Claude models.</b> A gateway changes where Claude inference is served and which provider serves it. It does not let Claude Desktop use Gemini, GPT, or any non-Claude family. The gateway target must be a Claude model served in Anthropic format.</div>
+
+  <div class="seclabel">Before you start</div>
+  <h2>Prerequisites</h2>
+  <div class="grouphdr">Already in place</div>
+  <ul class="checks">
+    <li class="have"><span class="mk">&#10003;</span> <b>Control plane available.</b> An AI Gateway 2.x control plane in Konnect.</li>
+    <li class="have"><span class="mk">&#10003;</span> <b>Cluster certificates created.</b> A data plane certificate registered with the AI Gateway for mTLS.</li>
+    <li class="have"><span class="mk">&#10003;</span> <b>Data plane deployed.</b> A data plane running and reachable.</li>
+  </ul>
+  <div class="grouphdr">Also required for Claude Desktop</div>
+  <ul class="checks">
+    <li class="need"><span class="mk">&#9633;</span> <b>kongctl</b> on a recent version, with your Konnect token exported as <code class="inline">KONNECT_TOKEN</code>.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Gateway identity</b> known: <code class="inline">AI_GATEWAY_ID</code> and the region URL <code class="inline">KONNECT_CONTROL_PLANE_URL</code>.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Anthropic API key</b> (the <code class="inline">sk-ant-...</code> value) available in your shell as an environment variable.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Gateway adopted</b> into a kongctl namespace.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Anthropic-format model on /v1/messages.</b> Claude Desktop speaks the Anthropic Messages API, not the OpenAI format.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>HTTPS with a trusted certificate</b> on the data plane. Claude Desktop requires an HTTPS base URL and validates the certificate. A self-signed certificate is rejected unless its CA is trusted on the machine.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Egress and DNS</b> from the data plane to <code class="inline">api.anthropic.com</code>. The data plane makes the upstream call.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Claude Desktop with third-party inference</b> (a recent build, Developer mode available).</li>
+  </ul>
+  <div class="grouphdr">For Entra ID (OIDC) sign-in</div>
+  <ul class="checks">
+    <li class="need"><span class="mk">&#9633;</span> <b>Entra ID app registration</b> for the gateway API, with permission to edit its manifest, expose an API, and create app roles (Step 5 walks through it).</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Tenant ID, client ID, and a client secret</b> for that registration.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Egress from the data plane</b> to <code class="inline">login.microsoftonline.com</code>, so Kong can fetch Entra's discovery document and signing keys.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>OpenAI API key</b> if you also expose the OpenAI model for CLI tools (Step 5). Claude Desktop does not use it.</li>
+  </ul>
+
+
+  <div class="seclabel">Production data plane</div>
+  <h2>Deploy the data plane on a VM</h2>
+  <p>The earlier prerequisite assumed a data plane already exists. For production on a VM there are two ways to run the AI Gateway 2.x data plane. Option A uses Kong's published OS package and is the path to prefer. Option B runs the published container image under Podman; it works and is what this environment uses today, but a manual container deployment of the 2.x data plane is not yet Kong-verified.</p>
+
+  <h3>Option A: OS package (Kong-published, recommended)</h3>
+  <p>Kong publishes the AI Gateway 2.x data plane as an OS package in the Cloudsmith <code class="inline">ai-gateway-22</code> repository, in both a standard and a FIPS 140-3 build. The AI Gateway runs on the same OpenResty engine as the regular gateway, so the familiar package, hybrid <code class="inline">kong.conf</code>, and systemd pattern applies. The binary runs on the host, so there is no container DNS layer to work around.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>shell (RHEL / EL 9)</div>
+<pre><span class="c"># add the ai-gateway-22 repo (confirm the exact URL on the Cloudsmith page)</span>
+curl <span class="k">-1sLf</span> <span class="s">'https://packages.konghq.com/public/ai-gateway-22/setup.rpm.sh'</span> | sudo bash
+
+<span class="c"># standard build</span>
+sudo dnf install <span class="k">-y</span> kong-ai-gateway
+<span class="c"># or the FIPS 140-3 build:</span>
+<span class="c"># sudo dnf install -y kong-ai-gateway-fips-140-3</span>
+
+<span class="c"># Debian / Ubuntu equivalent:</span>
+<span class="c"># curl -1sLf 'https://packages.konghq.com/public/ai-gateway-22/setup.deb.sh' | sudo bash</span>
+<span class="c"># sudo apt install -y kong-ai-gateway</span></pre></div>
+  <p>Place the data plane certificate (the one registered with your AI Gateway), configure the node as a hybrid data plane, and start it under systemd.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>/etc/kong/kong.conf</div>
+<pre>role = data_plane
+database = off
+konnect_mode = on
+cluster_mtls = pki
+cluster_control_plane = <span class="s">&lt;cp-endpoint&gt;</span>:443
+cluster_server_name = <span class="s">&lt;cp-endpoint&gt;</span>
+cluster_telemetry_endpoint = <span class="s">&lt;telemetry-endpoint&gt;</span>:443
+cluster_telemetry_server_name = <span class="s">&lt;telemetry-endpoint&gt;</span>
+cluster_cert = /etc/kong/certs/tls.crt
+cluster_cert_key = /etc/kong/certs/tls.key
+lua_ssl_trusted_certificate = system
+proxy_listen = 0.0.0.0:8000, 0.0.0.0:8443 ssl</pre></div>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre>sudo mkdir <span class="k">-p</span> /etc/kong/certs
+sudo install <span class="k">-m</span> 0600 tls.crt tls.key /etc/kong/certs/
+
+<span class="c"># start, then manage with systemd (Kong ships systemd integration)</span>
+sudo kong start <span class="k">-c</span> /etc/kong/kong.conf
+sudo systemctl enable <span class="k">--now</span> kong    <span class="c"># if using the packaged unit</span></pre></div>
+  <p>The node should show Connected and Compatible under your AI Gateway in Konnect. Because the binary runs on the host, DNS comes straight from the host's <code class="inline">/etc/resolv.conf</code>, so the container resolver mismatch does not apply here.</p>
+  <div class="note"><b>Data plane version, Konnect-managed.</b> With a Konnect control plane, data planes run across a supported version range rather than an exact match. Kong recommends one major version of data plane per control plane; if versions are mixed, the control plane serves the least common subset of configuration across the connected data planes. Keep the data planes on a current, supported AI Gateway 2.2.x build and upgrade them together; you do not need to match the control plane patch for patch.</div>
+
+  <h3>Option B: Podman container (viable, not yet Kong-verified)</h3>
+  <p>Running the published <code class="inline">kong/kong-ai-gateway</code> container under Podman works and is what this environment uses today. A manual container deployment of the AI Gateway 2.x data plane is not a Kong-verified production path, so prefer Option A, or confirm this configuration with the Kong AI Gateway team before go-live. For production, supervise the container with systemd through a Quadlet unit rather than a bare run.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>shell (container)</div>
+<pre>podman run <span class="k">-d</span> <span class="k">--name</span> kong-dp <span class="k">--restart</span> always \
+  <span class="k">--dns</span> <span class="s">&lt;internal-dns-1&gt;</span> <span class="k">--dns</span> <span class="s">&lt;internal-dns-2&gt;</span> \
+  <span class="k">-e</span> KONG_ROLE=data_plane \
+  <span class="k">-e</span> KONG_DATABASE=off \
+  <span class="k">-e</span> KONG_KONNECT_MODE=on \
+  <span class="k">-e</span> KONG_CLUSTER_MTLS=pki \
+  <span class="k">-e</span> KONG_CLUSTER_CONTROL_PLANE=<span class="s">&lt;cp-endpoint&gt;</span>:443 \
+  <span class="k">-e</span> KONG_CLUSTER_SERVER_NAME=<span class="s">&lt;cp-endpoint&gt;</span> \
+  <span class="k">-e</span> KONG_CLUSTER_TELEMETRY_ENDPOINT=<span class="s">&lt;telemetry-endpoint&gt;</span>:443 \
+  <span class="k">-e</span> KONG_CLUSTER_TELEMETRY_SERVER_NAME=<span class="s">&lt;telemetry-endpoint&gt;</span> \
+  <span class="k">-e</span> KONG_CLUSTER_CERT=/etc/secrets/kong-cluster-cert/tls.crt \
+  <span class="k">-e</span> KONG_CLUSTER_CERT_KEY=/etc/secrets/kong-cluster-cert/tls.key \
+  <span class="k">-e</span> KONG_LUA_SSL_TRUSTED_CERTIFICATE=system \
+  <span class="k">-v</span> /etc/kong/certs/tls.crt:/etc/secrets/kong-cluster-cert/tls.crt:ro,Z \
+  <span class="k">-v</span> /etc/kong/certs/tls.key:/etc/secrets/kong-cluster-cert/tls.key:ro,Z \
+  <span class="k">-p</span> 8000:8000 <span class="k">-p</span> 8443:8443 \
+  docker.io/kong/kong-ai-gateway:2.2.0</pre></div>
+  <div class="note"><b>Container DNS caveat.</b> Podman does not always inherit the host's resolvers; it can inject its own stub resolver as the first nameserver, which caused the "name resolution failed" upstream errors. Passing <code class="inline">--dns</code> with your internal resolvers (above) is the fix. Option A avoids this entirely by running on the host network stack. For production supervision, convert this run into a Quadlet <code class="inline">.container</code> unit under <code class="inline">/etc/containers/systemd/</code> so systemd manages restarts and boot start, or set a host-wide default with <code class="inline">dns_servers</code> in <code class="inline">/etc/containers/containers.conf</code>.</div>
+
+
+  <div class="step"><span class="num">1</span><h2>Set your environment</h2></div>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre><span class="k">export</span> KONNECT_CONTROL_PLANE_URL=<span class="s">'https://us.api.konghq.com'</span>
+<span class="k">export</span> KONNECT_CONTROL_PLANE_NAME=<span class="s">'your-ai-gateway-name'</span>
+<span class="k">export</span> AI_GATEWAY_ID=<span class="s">'00000000-0000-0000-0000-000000000000'</span>
+<span class="k">export</span> KONNECT_TOKEN=<span class="s">'kpat_...'</span>
+<span class="k">export</span> ANTHROPIC_API_KEY=<span class="s">'sk-ant-...'</span>       <span class="c"># upstream Anthropic key (outbound)</span>
+<span class="k">export</span> CONSUMER_API_KEY=<span class="s">'claude-desktop-key-change-me'</span>  <span class="c"># inbound key Claude Desktop sends</span>
+
+<span class="c"># Entra ID (OIDC), used from Step 5</span>
+<span class="k">export</span> TENANT_ID=<span class="s">'00000000-0000-0000-0000-000000000000'</span>   <span class="c"># Directory (tenant) ID</span>
+<span class="k">export</span> CLIENT_ID=<span class="s">'00000000-0000-0000-0000-000000000000'</span>   <span class="c"># Application (client) ID of the gateway API app</span>
+<span class="k">export</span> CLIENT_SECRET=<span class="s">'...'</span>                                  <span class="c"># client secret of that app</span>
+<span class="k">export</span> ISSUER_URL=<span class="s">"https://login.microsoftonline.com/${TENANT_ID}/v2.0"</span>
+<span class="k">export</span> ENTRA_SCOPE=<span class="s">"api://${CLIENT_ID}/.default"</span>
+<span class="k">export</span> OPENAI_AUTH_HEADER=<span class="s">'Bearer sk-...'</span>                     <span class="c"># only for the OpenAI model (CLI tools)</span></pre></div>
+
+  <div class="step"><span class="num">2</span><h2>Adopt the gateway</h2></div>
+  <p>Required once before <code class="inline">apply</code> can manage the gateway's resources.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre>kongctl adopt ai-gateway <span class="s">"${KONNECT_CONTROL_PLANE_NAME}"</span> \
+  <span class="k">--namespace</span> ai-gateway-kongctl \
+  <span class="k">--pat</span> <span class="s">"${KONNECT_TOKEN}"</span></pre></div>
+
+  <div class="step"><span class="num">3</span><h2>Provider, family models, key-auth, consumer</h2></div>
+  <p>The provider holds the Anthropic key and sends it outbound as <code class="inline">x-api-key</code> (Anthropic's header). Each model is Anthropic format, serving the Messages API, and represents one family: clients send the family alias (<code class="inline">claude-opus</code>, <code class="inline">claude-sonnet</code>, <code class="inline">claude-haiku</code>) in the <code class="inline">model</code> field, and the target pins the exact upstream version. Sending the upstream version id directly is rejected, so only pinned versions are reachable. The key-auth strategy gates inbound requests; the consumer holds the key Claude Desktop sends.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>ai-gateway-kongctl.yaml</div>
+<pre><span class="k">_defaults:</span>
+  <span class="k">kongctl:</span>
+    <span class="k">namespace:</span> ai-gateway-kongctl
+
+<span class="k">ai_gateway_model_providers:</span>
+- <span class="k">ref:</span> anthropic-provider
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">name:</span> anthropic-provider
+  <span class="k">display_name:</span> Anthropic
+  <span class="k">type:</span> anthropic
+  <span class="k">config:</span>
+    <span class="k">auth:</span>
+      <span class="k">type:</span> basic
+      <span class="k">headers:</span>
+      - <span class="k">name:</span> x-api-key
+        <span class="k">value:</span> !secret {source: !env <span class="s">'ANTHROPIC_API_KEY'</span>}
+
+<span class="k">ai_gateway_auth_strategies:</span>
+- <span class="k">ref:</span> claude-key-auth
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">name:</span> claude-key-auth
+  <span class="k">display_name:</span> Claude Key Auth
+  <span class="k">type:</span> key-auth
+  <span class="k">config:</span>
+    <span class="k">key_names:</span> [x-api-key]
+    <span class="k">hide_credentials:</span> true
+
+<span class="k">ai_gateway_consumers:</span>
+- <span class="k">ref:</span> claude-desktop
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">name:</span> claude-desktop
+  <span class="k">display_name:</span> Claude Desktop
+  <span class="k">custom_id:</span> claude-desktop
+  <span class="k">type:</span> api-key
+  <span class="k">credentials:</span>
+  - <span class="k">ref:</span> claude-desktop-key
+    <span class="k">name:</span> claude-desktop-key
+    <span class="k">display_name:</span> Claude Desktop Key
+    <span class="k">type:</span> api-key
+    <span class="k">api_key:</span> !secret {source: !env <span class="s">'CONSUMER_API_KEY'</span>}
+
+<span class="k">ai_gateway_models:</span>
+- <span class="k">ref:</span> claude-model-opus
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">name:</span> claude-opus
+  <span class="k">display_name:</span> <span class="s">"Claude Opus"</span>
+  <span class="k">type:</span> model
+  <span class="k">formats:</span> [{type: anthropic}]
+  <span class="k">capabilities:</span> [generate]
+  <span class="k">access:</span>
+    <span class="k">auth_strategies:</span>
+    - claude-key-auth
+  <span class="k">config:</span>
+    <span class="k">response_streaming:</span> allow
+    <span class="k">route:</span>
+      <span class="k">paths:</span> [/]
+      <span class="k">protocols:</span> [http, https]
+      <span class="k">model:</span> {body_param: model, values: [claude-opus]}   <span class="c"># alias clients send</span>
+  <span class="k">targets:</span>
+  - <span class="k">name:</span> claude-opus-4-8    <span class="c"># pinned upstream version (verify against your access)</span>
+    <span class="k">provider:</span> anthropic-provider
+    <span class="k">config:</span> {type: anthropic}
+- <span class="k">ref:</span> claude-model-sonnet
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">name:</span> claude-sonnet
+  <span class="k">display_name:</span> <span class="s">"Claude Sonnet"</span>
+  <span class="k">type:</span> model
+  <span class="k">formats:</span> [{type: anthropic}]
+  <span class="k">capabilities:</span> [generate]
+  <span class="k">access:</span>
+    <span class="k">auth_strategies:</span>
+    - claude-key-auth
+  <span class="k">config:</span>
+    <span class="k">response_streaming:</span> allow
+    <span class="k">route:</span>
+      <span class="k">paths:</span> [/]
+      <span class="k">protocols:</span> [http, https]
+      <span class="k">model:</span> {body_param: model, values: [claude-sonnet]}
+  <span class="k">targets:</span>
+  - <span class="k">name:</span> claude-sonnet-4-6
+    <span class="k">provider:</span> anthropic-provider
+    <span class="k">config:</span> {type: anthropic}
+- <span class="k">ref:</span> claude-model-haiku
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">name:</span> claude-haiku
+  <span class="k">display_name:</span> <span class="s">"Claude Haiku"</span>
+  <span class="k">type:</span> model
+  <span class="k">formats:</span> [{type: anthropic}]
+  <span class="k">capabilities:</span> [generate]
+  <span class="k">access:</span>
+    <span class="k">auth_strategies:</span>
+    - claude-key-auth
+  <span class="k">config:</span>
+    <span class="k">response_streaming:</span> allow
+    <span class="k">route:</span>
+      <span class="k">paths:</span> [/]
+      <span class="k">protocols:</span> [http, https]
+      <span class="k">model:</span> {body_param: model, values: [claude-haiku]}
+  <span class="k">targets:</span>
+  - <span class="k">name:</span> claude-haiku-4-5
+    <span class="k">provider:</span> anthropic-provider
+    <span class="k">config:</span> {type: anthropic}</pre></div>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre>kongctl apply <span class="k">-f</span> ai-gateway-kongctl.yaml <span class="k">-o</span> text \
+  <span class="k">--auto-approve</span> <span class="k">--pat</span> <span class="s">"${KONNECT_TOKEN}"</span></pre></div>
+  <div class="warn"><b>Verify these Anthropic-specific fields against your CRD/version.</b> The provider auth nesting (<code class="inline">auth.basic.headers</code>), the <code class="inline">anthropic</code> format, and the upstream model id are the parts most likely to differ. kongctl names any rejected field in its output, the same way it flags a bad key.</div>
+  <div class="note"><b>Keep every model in this file.</b> A model created in the Konnect UI is saved with UI defaults: no auth strategy (<code class="inline">access: {}</code>), <code class="inline">max_request_body_size: 0</code>, and a balancer with 5 retries. An Opus model created that way accepted unauthenticated requests. Manage all models declaratively so they share one auth configuration, and compare with <code class="inline">kongctl get ai-gateway models &lt;name&gt; --gateway-name &lt;gw&gt; -o yaml</code>. Use <code class="inline">apply</code>, not <code class="inline">sync</code>, while resources outside this file exist on the gateway; <code class="inline">sync</code> deletes them.</div>
+  <div class="note"><b>Upgrading a family.</b> To move Opus to a newer version, change only <code class="inline">targets[].name</code> and apply again. Clients keep sending <code class="inline">claude-opus</code>.</div>
+
+  <div class="step"><span class="num">4</span><h2>Test from the command line</h2></div>
+  <p>Claude Desktop will call <code class="inline">/v1/messages</code>. Confirm the gateway answers with the key before wiring the app.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre><span class="k">export</span> AIGW_HTTPS=<span class="s">'https://your.gateway.host'</span>   <span class="c"># trusted-cert host, not an IP</span>
+
+curl <span class="k">-s</span> <span class="k">-i</span> <span class="s">"$AIGW_HTTPS/v1/messages"</span> \
+  <span class="k">-H</span> <span class="s">"Content-Type: application/json"</span> \
+  <span class="k">-H</span> <span class="s">"anthropic-version: 2023-06-01"</span> \
+  <span class="k">-H</span> <span class="s">"x-api-key: ${CONSUMER_API_KEY}"</span> \
+  <span class="k">-d</span> <span class="s">'{"model":"claude-sonnet","max_tokens":64,"messages":[{"role":"user","content":"ping"}]}'</span>
+
+<span class="c"># every family must reject a request without a credential</span>
+<span class="k">for</span> m <span class="k">in</span> claude-opus claude-sonnet claude-haiku; <span class="k">do</span>
+  curl <span class="k">-s -o</span> /dev/null <span class="k">-w</span> <span class="s">"$m %{http_code}\n"</span> <span class="s">"$AIGW_HTTPS/v1/messages"</span> \
+    <span class="k">-H</span> <span class="s">"Content-Type: application/json"</span> <span class="k">-H</span> <span class="s">"anthropic-version: 2023-06-01"</span> \
+    <span class="k">-d</span> <span class="s">"{\"model\":\"$m\",\"max_tokens\":8,\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}]}"</span>
+<span class="k">done</span>    <span class="c"># expect 401 for all three</span></pre></div>
+  <p>A <code class="inline">200</code> with a completion means the full path works: inbound key-auth, Anthropic-format routing, outbound Anthropic credential. The loop must print <code class="inline">401</code> for every family; a <code class="inline">200</code> there means that model has no auth strategy. If curl needs <code class="inline">--insecure</code> to pass, the certificate is not trusted, fix that before Claude Desktop, which will not skip certificate validation.</p>
+
+  <div class="step"><span class="num">5</span><h2>Add Entra ID sign-in (OIDC auth strategy)</h2></div>
+  <p>An <code class="inline">openid-connect</code> auth strategy lets callers present an Entra ID access token as <code class="inline">Authorization: Bearer</code> instead of a static key. Kong validates the token signature against Entra's published keys, checks the issuer, audience, and expiry, then maps the token to an AI Consumer. The strategy is added next to key-auth, so existing key users keep working.</p>
+
+  <h3>5a. Register the gateway API in Entra ID</h3>
+  <ul class="checks">
+    <li class="need"><span class="mk">1</span> <b>App registrations, New registration:</b> name it, for example, <code class="inline">kong-ai-gateway-api</code>, single tenant. Copy the <b>Application (client) ID</b> into <code class="inline">CLIENT_ID</code> and the <b>Directory (tenant) ID</b> into <code class="inline">TENANT_ID</code>.</li>
+    <li class="need"><span class="mk">2</span> <b>Expose an API:</b> set the Application ID URI to <code class="inline">api://&lt;CLIENT_ID&gt;</code>.</li>
+    <li class="need"><span class="mk">3</span> <b>Manifest:</b> set <code class="inline">requestedAccessTokenVersion</code> (shown as <code class="inline">accessTokenAcceptedVersion</code> in the legacy manifest view) to <code class="inline">2</code>. Without this Entra issues v1 tokens with issuer <code class="inline">https://sts.windows.net/&lt;tenant&gt;/</code>, which does not match <code class="inline">ISSUER_URL</code>, and every request is rejected with <code class="inline">401</code>.</li>
+    <li class="need"><span class="mk">4</span> <b>Certificates &amp; secrets:</b> create a client secret and copy its value into <code class="inline">CLIENT_SECRET</code>.</li>
+    <li class="need"><span class="mk">5</span> <b>Optional, recommended: App roles.</b> Create a role such as <code class="inline">AIGateway.Access</code> (allowed member types: Users/Groups and Applications). Assign it to the users and applications allowed to call the gateway, so you can require it at the gateway (see the commented lines below).</li>
+  </ul>
+
+  <h3>5b. Auth strategy, consumer, and models</h3>
+  <p>This file creates the strategy, an AI Consumer for a CLI tool that authenticates with client credentials, and an OpenAI model for OpenAI-format CLI tools, and attaches the strategy to every model. Claude Desktop only uses the Claude models; the OpenAI model is for other clients on the same gateway.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>entra-oidc-kongctl.yaml</div>
+<pre><span class="k">_defaults:</span>
+  <span class="k">kongctl:</span>
+    <span class="k">namespace:</span> ai-gateway-kongctl
+
+<span class="k">ai_gateway_auth_strategies:</span>
+- <span class="k">ref:</span> identity-oidc
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">display_name:</span> <span class="s">"Identity OIDC (Entra ID)"</span>
+  <span class="k">name:</span> identity-oidc
+  <span class="k">type:</span> openid-connect
+  <span class="k">config:</span>
+    <span class="k">issuer:</span> !env <span class="s">'ISSUER_URL'</span>        <span class="c"># https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</span>
+    <span class="k">client_id:</span>
+    - !env <span class="s">'CLIENT_ID'</span>               <span class="c"># gateway API app registration</span>
+    <span class="k">client_secret:</span>
+    - !secret {source: !env <span class="s">'CLIENT_SECRET'</span>}
+    <span class="k">auth_methods:</span>
+    - bearer                         <span class="c"># validate tokens the caller already has</span>
+    <span class="k">scopes:</span>
+    - !env <span class="s">'ENTRA_SCOPE'</span>             <span class="c"># api://&lt;CLIENT_ID&gt;/.default; only used when Kong itself requests tokens</span>
+    <span class="k">audience_required:</span>
+    - !env <span class="s">'CLIENT_ID'</span>               <span class="c"># v2 tokens carry the API app's client ID in "aud"</span>
+    <span class="k">consumer_claims:</span>
+    - - azp                          <span class="c"># v2 token: client ID of the calling application</span>
+    <span class="k">consumer_by:</span>
+    - custom_id                      <span class="c"># match "azp" against the AI Consumer's custom_id</span>
+    <span class="c"># Claude Desktop users (interactive sign-in) do not map to an AI Consumer;</span>
+    <span class="c"># allow valid user tokens through and gate them by app role instead:</span>
+    <span class="c"># consumer_optional: true</span>
+    <span class="c"># roles_claim: [roles]</span>
+    <span class="c"># roles_required: [AIGateway.Access]</span>
+    <span class="k">cache_tokens_salt:</span> identity-oidc-cache-salt
+
+<span class="k">ai_gateway_consumers:</span>
+- <span class="k">ref:</span> cli-tool-consumer
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">display_name:</span> <span class="s">"CLI Tool Consumer"</span>
+  <span class="k">name:</span> cli-tool-consumer
+  <span class="k">type:</span> oauth
+  <span class="k">custom_id:</span> !env <span class="s">'CLIENT_ID'</span>        <span class="c"># equals "azp" in the CLI tool's tokens</span>
+  <span class="k">policies:</span> []
+
+<span class="k">ai_gateway_model_providers:</span>
+- <span class="k">ref:</span> generic-openai
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">name:</span> generic-openai
+  <span class="k">display_name:</span> <span class="s">"generic-openai"</span>
+  <span class="k">type:</span> openai
+  <span class="k">config:</span>
+    <span class="k">auth:</span>
+      <span class="k">type:</span> basic
+      <span class="k">headers:</span>
+      - <span class="k">name:</span> Authorization
+        <span class="k">value:</span> !secret {source: !env <span class="s">'OPENAI_AUTH_HEADER'</span>}
+
+<span class="k">ai_gateway_models:</span>
+- <span class="k">ref:</span> my-gpt-4o-mini
+  <span class="k">ai_gateway:</span> !lookup {id: !env <span class="s">'AI_GATEWAY_ID'</span>}
+  <span class="k">display_name:</span> my-gpt-4o-mini
+  <span class="k">name:</span> my-gpt-4o-mini
+  <span class="k">type:</span> model
+  <span class="k">enabled:</span> true
+  <span class="k">formats:</span> [{type: openai}]
+  <span class="k">access:</span>
+    <span class="k">auth_strategies:</span>
+    - !ref identity-oidc#name
+  <span class="k">config:</span>
+    <span class="k">route:</span>
+      <span class="k">paths:</span> [/]
+      <span class="k">model:</span>
+        <span class="k">body_param:</span> model
+        <span class="k">values:</span> [my-gpt-4o-mini]
+  <span class="k">capabilities:</span> [generate]
+  <span class="k">targets:</span>
+  - <span class="k">name:</span> gpt-4o-mini
+    <span class="k">provider:</span> generic-openai
+    <span class="k">config:</span>
+      <span class="k">type:</span> openai</pre></div>
+  <p>Then attach the same strategy to the Claude models in <code class="inline">ai-gateway-kongctl.yaml</code> from Step 3, next to key-auth, on all three families:</p>
+  <div class="code"><div class="bar"><span class="dot"></span>ai-gateway-kongctl.yaml (each claude-* model)</div>
+<pre>  <span class="k">access:</span>
+    <span class="k">auth_strategies:</span>
+    - claude-key-auth
+    - identity-oidc                  <span class="c"># accepted if either strategy passes</span></pre></div>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre>kongctl apply <span class="k">-f</span> entra-oidc-kongctl.yaml <span class="k">-o</span> text <span class="k">--auto-approve</span> <span class="k">--pat</span> <span class="s">"${KONNECT_TOKEN}"</span>
+kongctl apply <span class="k">-f</span> ai-gateway-kongctl.yaml <span class="k">-o</span> text <span class="k">--auto-approve</span> <span class="k">--pat</span> <span class="s">"${KONNECT_TOKEN}"</span></pre></div>
+
+  <h3>Why the config differs from the generic OIDC example</h3>
+  <table class="kv">
+    <tr><th>consumer_claims: azp (not sub)</th><td>In Entra ID client-credentials tokens, <code>sub</code> is the service principal's object ID, not the client ID. The consumer's <code>custom_id</code> is the client ID, which Entra puts in <code>azp</code> (v2 tokens; v1 tokens use <code>appid</code>). Mapping <code>sub</code> to a <code>custom_id</code> of <code>CLIENT_ID</code> never matches, and every request ends in <code>401</code>.</td></tr>
+    <tr><th>audience_required</th><td>Restricts accepted tokens to ones issued for this API. Any token from your tenant would otherwise pass signature and issuer checks.</td></tr>
+    <tr><th>scopes</th><td>Entra scopes take the form <code>api://&lt;client-id&gt;/&lt;scope&gt;</code>; <code>/.default</code> requests all granted permissions. With <code>auth_methods: [bearer]</code> this value is not checked on incoming tokens. To enforce a delegated scope use <code>scopes_claim: [scp]</code> with <code>scopes_required</code>; client-credentials tokens carry <code>roles</code>, not <code>scp</code>.</td></tr>
+    <tr><th>One OIDC strategy per gateway</th><td>All AI Models in an AI Gateway that use OIDC must reference the same <code>openid-connect</code> strategy, so <code>identity-oidc</code> serves both the CLI tool and Claude Desktop users. That is why user-token handling (<code>consumer_optional</code>, roles) is configured on the same strategy.</td></tr>
+    <tr><th>Authorization</th><td>Authentication only proves who is calling. Every holder of a valid token for this API passes on every model that references the strategy. Use <code>access.acls</code> on a model, or the app-role check above, to limit who reaches which model.</td></tr>
+  </table>
+
+  <div class="step"><span class="num">6</span><h2>Test Entra ID tokens</h2></div>
+  <p>Get a client-credentials token for the gateway API, check its claims, then call both a Claude model and the OpenAI model with it.</p>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre>TOKEN=$(curl <span class="k">-s -X</span> POST <span class="s">"https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token"</span> \
+  <span class="k">-d</span> grant_type=client_credentials \
+  <span class="k">-d</span> client_id=<span class="s">"${CLIENT_ID}"</span> \
+  <span class="k">--data-urlencode</span> client_secret=<span class="s">"${CLIENT_SECRET}"</span> \
+  <span class="k">--data-urlencode</span> scope=<span class="s">"${ENTRA_SCOPE}"</span> | jq <span class="k">-r</span> .access_token)
+
+<span class="c"># check claims: iss must equal ISSUER_URL, aud must equal CLIENT_ID, azp must equal CLIENT_ID</span>
+echo <span class="s">"$TOKEN"</span> | cut <span class="k">-d.</span> <span class="k">-f2</span> | tr <span class="s">'_-'</span> <span class="s">'/+'</span> | base64 <span class="k">-d</span> 2&gt;/dev/null | jq <span class="s">'{iss, aud, azp, appid, roles, ver}'</span>
+
+<span class="c"># Claude model with the Entra token</span>
+curl <span class="k">-s -i</span> <span class="s">"$AIGW_HTTPS/v1/messages"</span> \
+  <span class="k">-H</span> <span class="s">"Content-Type: application/json"</span> \
+  <span class="k">-H</span> <span class="s">"anthropic-version: 2023-06-01"</span> \
+  <span class="k">-H</span> <span class="s">"Authorization: Bearer ${TOKEN}"</span> \
+  <span class="k">-d</span> <span class="s">'{"model":"claude-sonnet","max_tokens":64,"messages":[{"role":"user","content":"ping"}]}'</span>
+
+<span class="c"># OpenAI model (base path "/", so the endpoint is /chat/completions)</span>
+curl <span class="k">-s -i</span> <span class="s">"$AIGW_HTTPS/chat/completions"</span> \
+  <span class="k">-H</span> <span class="s">"Content-Type: application/json"</span> \
+  <span class="k">-H</span> <span class="s">"Authorization: Bearer ${TOKEN}"</span> \
+  <span class="k">-d</span> <span class="s">'{"model":"my-gpt-4o-mini","messages":[{"role":"user","content":"ping"}]}'</span></pre></div>
+  <table class="kv">
+    <tr><th><code>200</code></th><td>Token validated and mapped to <code>cli-tool-consumer</code>; requests appear under that consumer in Konnect.</td></tr>
+    <tr><th><code>401</code>, <code>iss</code> is sts.windows.net</th><td>The API app still issues v1 tokens. Set <code>requestedAccessTokenVersion</code> to <code>2</code> (Step 5a) and request a new token.</td></tr>
+    <tr><th><code>401</code>, <code>aud</code> is not <code>CLIENT_ID</code></th><td>The token was requested for another resource. Request it with <code>scope=api://&lt;CLIENT_ID&gt;/.default</code>.</td></tr>
+    <tr><th><code>401</code>, claims look right</th><td>No AI Consumer matched. Check that <code>azp</code> equals the consumer's <code>custom_id</code>, or set <code>consumer_optional: true</code> for callers that should not map to a consumer.</td></tr>
+  </table>
+  <div class="note"><b>One app or two.</b> This guide uses the gateway API registration as its own client for brevity, so <code>CLIENT_ID</code> appears as the audience and as <code>azp</code>. In production, register each CLI tool or service as a separate client app, grant it the API's app role, and set the consumer's <code>custom_id</code> to that client's ID.</div>
+
+  <div class="step"><span class="num">7</span><h2>Configure Claude Desktop (macOS)</h2></div>
+  <ul class="checks">
+    <li class="need"><span class="mk">1</span> <b>Update Claude Desktop</b> to a recent build.</li>
+    <li class="need"><span class="mk">2</span> <b>Enable Developer mode:</b> Help, then Troubleshooting, then Enable Developer Mode. Quit and reopen.</li>
+    <li class="need"><span class="mk">3</span> <b>Open the dialog:</b> menu bar, Developer, then Configure Third-Party Inference. Set the provider to Gateway.</li>
+    <li class="need"><span class="mk">4</span> <b>Fill the fields</b> (table below).</li>
+    <li class="need"><span class="mk">5</span> <b>Apply</b>, then fully quit and reopen. The connection test sends a real inference request.</li>
+  </ul>
+  <h3>Option A: static API key</h3>
+  <table class="kv">
+    <tr><th>Credential kind</th><td>Static API key</td></tr>
+    <tr><th>Gateway base URL</th><td><code>https://your.gateway.host</code> (HTTPS, trusted cert, no trailing slash)</td></tr>
+    <tr><th>Gateway API key</th><td>the consumer key (<code>CONSUMER_API_KEY</code>)</td></tr>
+    <tr><th>Gateway auth scheme</th><td><code>x-api-key</code> (must match the strategy's <code>key_names</code>)</td></tr>
+  </table>
+
+  <h3>Option B: Entra ID sign-in (OIDC)</h3>
+  <p>Claude Desktop runs a browser login against Entra ID and sends the resulting access token as <code class="inline">Authorization: Bearer</code>, which the <code class="inline">identity-oidc</code> strategy validates. Interactive users are people, not the CLI consumer, so first enable the commented lines in the strategy (<code class="inline">consumer_optional: true</code>, and the app-role check if you created <code class="inline">AIGateway.Access</code>) and apply again. Then:</p>
+  <ul class="checks">
+    <li class="need"><span class="mk">1</span> <b>Register a public client</b> in Entra ID for Claude Desktop (Mobile and desktop applications platform). Use the redirect URI that Claude Desktop's OIDC settings display or document.</li>
+    <li class="need"><span class="mk">2</span> <b>Expose a delegated scope</b> on the gateway API app (Expose an API, Add a scope, for example <code class="inline">access_as_user</code>) and add it to the Claude Desktop client's API permissions. Grant admin consent if your tenant requires it.</li>
+    <li class="need"><span class="mk">3</span> <b>Assign users or groups</b> to the <code class="inline">AIGateway.Access</code> app role on the gateway API's Enterprise application, if you enforce the role.</li>
+  </ul>
+  <table class="kv">
+    <tr><th>Credential kind</th><td>Identity provider sign-in (OIDC)</td></tr>
+    <tr><th>Gateway base URL</th><td><code>https://your.gateway.host</code></td></tr>
+    <tr><th>Issuer</th><td><code>https://login.microsoftonline.com/&lt;TENANT_ID&gt;/v2.0</code> (same as <code>ISSUER_URL</code>)</td></tr>
+    <tr><th>Client ID</th><td>the Claude Desktop public client's ID (not the gateway API's)</td></tr>
+    <tr><th>Scope</th><td><code>openid profile offline_access api://&lt;CLIENT_ID&gt;/access_as_user</code></td></tr>
+  </table>
+  <div class="warn"><b>Field names vary by Claude Desktop build.</b> Match the values above to the fields your build shows. The token Claude Desktop sends must have <code class="inline">aud</code> equal to the gateway API's <code class="inline">CLIENT_ID</code>; an ID token or a Microsoft Graph token (<code class="inline">aud</code> of <code class="inline">00000003-0000-0000-c000-000000000000</code>) is rejected. If the test fails, capture the token and decode it as in Step 6.</div>
+
+  <div class="seclabel">Confirm</div>
+  <h2>What a working connection looks like</h2>
+  <div class="result">
+    <div>The connection test passes (it runs a live inference request).</div>
+    <div>Chat responses come back in the normal Claude Desktop window.</div>
+    <div>Request and token counts appear on the gateway in Konnect.</div>
+  </div>
+  <p>If the test fails: HTTPS or an untrusted certificate is the usual cause, then a base URL path that does not resolve to <code class="inline">/v1/messages</code>, then a model id the gateway does not know. The model Claude Desktop sends must be a family alias in <code class="inline">route.model.values</code> (<code class="inline">claude-opus</code>, <code class="inline">claude-sonnet</code>, <code class="inline">claude-haiku</code>). The model discovery endpoint below lists exactly those aliases. With OIDC, a <code class="inline">401</code> almost always comes from the token's <code class="inline">iss</code> or <code class="inline">aud</code> (see Step 6).</p>
+
+
+  <div class="seclabel">Model discovery</div>
+  <h2>GET /v1/models, built from the configured models</h2>
+  <p>Claude Desktop calls <code class="inline">GET /v1/models</code> to test the connection and fill its model picker. AI Models only serve inference paths, so nothing on the gateway answers that request by default. The pattern below hosts it on a <code class="inline">passthrough-listener</code> AI MCP Server at <code class="inline">/v1/models</code> with a <code class="inline">pre-function</code> policy that answers the request itself; the upstream URL is never contacted.</p>
+  <p>The list is not hardcoded. On each request (cached for 30 seconds per worker) the function reads the gateway's AI Models from the Konnect API and returns every enabled Anthropic-format model that has an alias. Add, disable, or rename a Claude family model and <code class="inline">/v1/models</code> follows within 30 seconds, with no redeploy. The gateway ID and Konnect region are derived from the data plane's own <code class="inline">cluster_control_plane</code> setting, so the same policy works on any gateway.</p>
+  <div class="grouphdr">Requirements</div>
+  <ul class="checks">
+    <li class="need"><span class="mk">&#9633;</span> <b><code class="inline">untrusted_lua = lax</code> on every data plane</b> (<code class="inline">KONG_UNTRUSTED_LUA=lax</code>). The default <code class="inline">strict</code> sandbox blocks the HTTP call and the vault lookup. <code class="inline">lax</code> applies to every pre- and post-function on the data plane, so restrict who can create those policies.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>A read-only Konnect token</b> (system account) that can list AI Gateways and read their models. Day 1: paste it into <code class="inline">KONNECT_TOKEN</code> in the Lua; it is visible to anyone who can read policies. Day 2: store it in a secret manager behind an AI Vault and set <code class="inline">KONNECT_TOKEN = "{vault://gcp-sm/konnect-models-pat}"</code>.</li>
+    <li class="need"><span class="mk">&#9633;</span> <b>Egress</b> from the data plane to <code class="inline">&lt;region&gt;.api.konghq.com</code>.</li>
+  </ul>
+  <div class="code"><div class="bar"><span class="dot"></span>v1-models-kongctl.yaml</div>
+<pre><span class="k">_defaults:</span>
+  <span class="k">kongctl:</span>
+    <span class="k">namespace:</span> ai-gateway-kongctl
+<span class="k">ai_gateway_policies:</span>
+- <span class="k">ref:</span> models-list-pre-function
+  <span class="k">ai_gateway:</span> !lookup {id: !env 'AI_GATEWAY_ID'}
+  <span class="k">name:</span> models-list-pre-function
+  <span class="k">display_name:</span> Models List Pre-function
+  <span class="k">type:</span> pre-function
+  <span class="k">enabled:</span> true
+  <span class="k">global:</span> false
+  <span class="k">config:</span>
+    <span class="k">access:</span>
+    - |
+      local http  = require("resty.http")
+      local cjson = require("cjson.safe")
+
+      local KONNECT_TOKEN = "&lt;read-only-konnect-token&gt;"
+      local GATEWAY_ID    = nil   -- optional override; nil = discover at runtime
+
+      local CACHE_TTL   = 30
+      local RETRY_AFTER = 5
+      local JSON        = { ["Content-Type"] = "application/json" }
+
+      -- "9146d23eb2.us.cp.konghq.com:443" -&gt; host, region "us"
+      local cp_host = tostring(kong.configuration.cluster_control_plane or ""):match("^([^:/]+)")
+      local region  = cp_host and cp_host:match("^[^.]+%.([^.]+)%.cp%.konghq%.com$")
+      local KONNECT_API = "https://" .. (region or "us") .. ".api.konghq.com"
+
+      local cache = { body = nil, expires = 0 }
+
+      local function get_token()
+        if KONNECT_TOKEN:sub(1, 9) == "{vault://" then
+          local value, err = kong.vault.get(KONNECT_TOKEN)
+          if not value then return nil, "vault lookup failed: " .. tostring(err) end
+          return value
+        end
+        return KONNECT_TOKEN
+      end
+
+      local function konnect_get(path, token)
+        local httpc = http.new()
+        httpc:set_timeout(3000)
+        local res, err = httpc:request_uri(KONNECT_API .. path, {
+          method  = "GET",
+          headers = { ["Authorization"] = "Bearer " .. token, ["Accept"] = "application/json" },
+          ssl_verify = true,
+        })
+        if not res then return nil, path .. " request failed: " .. tostring(err) end
+        if res.status ~= 200 then return nil, path .. " returned " .. res.status end
+        local doc = cjson.decode(res.body)
+        if type(doc) ~= "table" then return nil, path .. " returned invalid JSON" end
+        return doc
+      end
+
+      -- Finds the AI Gateway whose definition mentions this data plane's control
+      -- plane host (or its cluster prefix). Resolved once per worker, then reused.
+      local function resolve_gateway_id(token)
+        if GATEWAY_ID then return GATEWAY_ID end
+        if not cp_host or cp_host == "" then
+          return nil, "cluster_control_plane is not set on this data plane"
+        end
+        local doc, err = konnect_get("/v1/ai-gateways?page%5Bsize%5D=100", token)
+        if not doc then return nil, err end
+
+        local prefix = cp_host:match("^([^.]+)")
+        for _, gw in ipairs(doc.data or doc) do
+          local raw = cjson.encode(gw) or ""
+          if raw:find(cp_host, 1, true) or (prefix and raw:find(prefix, 1, true)) then
+            GATEWAY_ID = gw.id
+            kong.log.notice("[models-list] resolved AI Gateway ", gw.name or "?", " (", gw.id, ")")
+            return GATEWAY_ID
+          end
+        end
+        return nil, "no AI Gateway visible to the token matches " .. cp_host
+      end
+
+      local function has_format(model, wanted)
+        for _, f in ipairs(model.formats or {}) do
+          if type(f) == "table" and f.type == wanted then return true end
+        end
+        return false
+      end
+
+      local function fetch_models()
+        local token, terr = get_token()
+        if not token then return nil, terr end
+        local gateway_id, gerr = resolve_gateway_id(token)
+        if not gateway_id then return nil, gerr end
+
+        local doc, err = konnect_get("/v1/ai-gateways/" .. gateway_id .. "/models?page%5Bsize%5D=100", token)
+        if not doc then return nil, err end
+
+        local list = {}
+        for _, m in ipairs(doc.data or doc) do
+          local alias = type(m.config) == "table" and type(m.config.route) == "table"
+            and type(m.config.route.model) == "table" and type(m.config.route.model.values) == "table"
+            and m.config.route.model.values[1]
+          if m.enabled ~= false and has_format(m, "anthropic") and type(alias) == "string" and alias ~= "" then
+            list[#list + 1] = {
+              type = "model",
+              id = alias,
+              display_name = m.display_name or m.name,
+              created_at = m.created_at,
+            }
+          end
+        end
+        table.sort(list, function(a, b) return a.id &lt; b.id end)
+
+        if #list == 0 then
+          return '{"data":[],"has_more":false,"first_id":null,"last_id":null}'
+        end
+        return cjson.encode({
+          data = list,
+          has_more = false,
+          first_id = list[1].id,
+          last_id = list[#list].id,
+        })
+      end
+
+      return function()
+        if kong.request.get_method() ~= "GET" then
+          return kong.response.exit(405, '{"error":"method not allowed"}', JSON)
+        end
+
+        local now = ngx.now()
+        if not cache.body or now &gt;= cache.expires then
+          local body, err = fetch_models()
+          if body then
+            cache.body, cache.expires = body, now + CACHE_TTL
+          elseif cache.body then
+            kong.log.warn("[models-list] refresh failed, serving cached list: ", err)
+            cache.expires = now + RETRY_AFTER
+          else
+            kong.log.err("[models-list] ", err)
+            return kong.response.exit(503, '{"error":"model list unavailable"}', JSON)
+          end
+        end
+
+        return kong.response.exit(200, cache.body, JSON)
+      end
+<span class="k">ai_gateway_mcp_servers:</span>
+- <span class="k">ref:</span> v1-models-mcp
+  <span class="k">ai_gateway:</span> !lookup {id: !env 'AI_GATEWAY_ID'}
+  <span class="k">name:</span> v1-models-mcp
+  <span class="k">display_name:</span> v1 models MCP
+  <span class="k">type:</span> passthrough-listener
+  <span class="k">enabled:</span> true
+  <span class="k">access:</span>
+    <span class="k">acl_attribute_type:</span> consumer
+    <span class="k">auth_strategies:</span>
+    - claude-key-auth      <span class="c"># one strategy per MCP server; use identity-oidc if Claude Desktop signs in with Entra ID</span>
+  <span class="k">policies:</span>
+  - models-list-pre-function
+  <span class="k">config:</span>
+    <span class="k">url:</span> http://unresolvable.invalid
+    <span class="k">route:</span>
+      <span class="k">paths:</span> ["/v1/models"]</pre></div>
+  <div class="code"><div class="bar"><span class="dot"></span>shell</div>
+<pre>kongctl apply <span class="k">-f</span> v1-models-kongctl.yaml <span class="k">-o</span> text \
+  <span class="k">--auto-approve</span> <span class="k">--pat</span> <span class="s">"${KONNECT_TOKEN}"</span>
+
+<span class="c"># expect the family aliases, then 401 without a credential, then 405 for POST</span>
+curl <span class="k">-s</span> <span class="s">"$AIGW_HTTPS/v1/models"</span> <span class="k">-H</span> <span class="s">"x-api-key: ${CONSUMER_API_KEY}"</span> | jq <span class="s">'.data[].id'</span>
+curl <span class="k">-s -o</span> /dev/null <span class="k">-w</span> <span class="s">"%{http_code}\n"</span> <span class="s">"$AIGW_HTTPS/v1/models"</span>
+curl <span class="k">-s -o</span> /dev/null <span class="k">-w</span> <span class="s">"%{http_code}\n"</span> <span class="k">-X</span> POST <span class="s">"$AIGW_HTTPS/v1/models"</span> <span class="k">-H</span> <span class="s">"x-api-key: ${CONSUMER_API_KEY}"</span></pre></div>
+  <div class="note"><b>Check gateway discovery first.</b> The function finds its AI Gateway by searching the gateway objects for the data plane's control plane host. Confirm the host appears with <code class="inline">kongctl get ai-gateways -o json | grep -c &lt;cp-prefix&gt;</code> (for example <code class="inline">9146d23eb2</code>). If it returns 0, set <code class="inline">GATEWAY_ID</code> in the Lua as an override. Errors are logged on the data plane with the prefix <code class="inline">[models-list]</code>.</div>
+  <div class="note"><b>One auth strategy per MCP server.</b> An AI MCP Server accepts a single auth strategy, unlike a model. Claude Desktop sends the same credential on <code class="inline">/v1/models</code> as on inference, so attach the strategy that matches its credential kind: <code class="inline">claude-key-auth</code> for the static key, <code class="inline">identity-oidc</code> for Entra ID sign-in. Authentication runs before policies, so the list is never served to an unauthenticated caller.</div>
+  <div class="note"><b>Naming.</b> Policy names cannot contain a slash, so the policy is <code class="inline">models-list-pre-function</code>; the endpoint path comes from <code class="inline">route.paths</code>. Keep only one entity on <code class="inline">/v1/models</code>. Remove any earlier static or request-termination version before applying this one.</div>
+
+  <footer><b>Kong AI Gateway 2.x</b> &nbsp;&middot;&nbsp; Claude Desktop via static API key or Entra ID (OIDC) &nbsp;&middot;&nbsp; Names and model ids are examples. Replace with your own values.</footer>
+
+</div>
+<script>
+(function(){
+  function fallback(text,done){
+    var ta=document.createElement('textarea');ta.value=text;ta.setAttribute('readonly','');
+    ta.style.position='absolute';ta.style.left='-9999px';document.body.appendChild(ta);
+    ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);
+  }
+  function wire(){
+    document.querySelectorAll('.code').forEach(function(block){
+      var pre=block.querySelector('pre');var bar=block.querySelector('.bar');
+      if(!pre||!bar||bar.querySelector('.copy-btn'))return;
+      var btn=document.createElement('button');btn.type='button';btn.className='copy-btn';btn.textContent='Copy';
+      btn.addEventListener('click',function(){
+        var text=pre.textContent;
+        var done=function(){btn.textContent='Copied';btn.classList.add('copied');setTimeout(function(){btn.textContent='Copy';btn.classList.remove('copied');},1500);};
+        if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done).catch(function(){fallback(text,done);});}
+        else{fallback(text,done);}
+      });
+      bar.appendChild(btn);
+    });
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',wire);}else{wire();}
+})();
+</script>
+</body>
+</html>

@@ -25,6 +25,9 @@ env:
   proxy_access_log: "off"
   dns_stale_ttl: "3600"
 
+  # Dynamic GET /v1/models (models-list-pre-function in kongctl/req-term-mcp-kongctl.yaml)
+  untrusted_lua: lax
+
 resources:
   requests:
     cpu: 1

@@ -1,0 +1,23 @@
+# Day 2: Google Secret Manager as an AI Vault.
+#
+# Secrets in project $GCP_PROJECT_ID are referenced as {vault://gcp-sm/<secret-id>},
+# e.g. {vault://gcp-sm/konnect-models-pat} for the /v1/models pre-function token.
+#
+# Data planes on GKE authenticate with Workload Identity: the Kong pods' Kubernetes
+# service account must map to a Google identity that has
+# roles/secretmanager.secretAccessor on the referenced secrets.
+#
+# Apply: kongctl apply -f gcp-vault-kongctl.yaml --pat "$KONNECT_TOKEN"
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+ai_gateway_vaults:
+- ref: gcp-sm
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: gcp-sm
+  description: Google Secret Manager for AI Gateway secrets
+  type: gcp
+  config:
+    project_id: !env 'GCP_PROJECT_ID'
+    ttl: 300
+    resurrect_ttl: 3600

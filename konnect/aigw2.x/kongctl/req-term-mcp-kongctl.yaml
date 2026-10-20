@@ -2,15 +2,154 @@ _defaults:
   kongctl:
     namespace: ai-gateway-kongctl
 ai_gateway_policies:
-- ref: v1-models-termination
+# GET /v1/models built at request time from the AI Models configured in Konnect.
+# Lists every enabled anthropic-format model that has a model alias; the alias is
+# the id clients send. Results are cached per worker for CACHE_TTL seconds.
+#
+# KONNECT_TOKEN: read-only Konnect token. Day 1: literal value. Day 2: a vault
+#   reference such as "{vault://gcp-sm/konnect-models-pat}" (see gcp-vault-kongctl.yaml).
+# Gateway ID and Konnect region are discovered from the data plane's
+# cluster_control_plane setting, so nothing gateway-specific is hardcoded.
+#
+# Data plane requirement: KONG_UNTRUSTED_LUA=lax (resty.http and kong.vault are
+# outside the default strict sandbox). See helm/2.x-values.yaml.
+- ref: models-list-pre-function
   ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
-  name: v1-models-list
-  display_name: /v1/models  
-  type: request-termination
+  name: models-list-pre-function
+  display_name: Models List Pre-function
+  type: pre-function
+  enabled: true
+  global: false
   config:
-    status_code: 200
-    content_type: application/json
-    body: '{"message":"Welcome to the Kong AI Gateway MCP endpoint"}'
+    access:
+    - |
+      local http  = require("resty.http")
+      local cjson = require("cjson.safe")
+
+      local KONNECT_TOKEN = "<read-only-konnect-token>"
+      local GATEWAY_ID    = nil   -- optional override; nil = discover at runtime
+
+      local CACHE_TTL   = 30
+      local RETRY_AFTER = 5
+      local JSON        = { ["Content-Type"] = "application/json" }
+
+      -- "9146d23eb2.us.cp.konghq.com:443" -> host, region "us"
+      local cp_host = tostring(kong.configuration.cluster_control_plane or ""):match("^([^:/]+)")
+      local region  = cp_host and cp_host:match("^[^.]+%.([^.]+)%.cp%.konghq%.com$")
+      local KONNECT_API = "https://" .. (region or "us") .. ".api.konghq.com"
+
+      local cache = { body = nil, expires = 0 }
+
+      local function get_token()
+        if KONNECT_TOKEN:sub(1, 9) == "{vault://" then
+          local value, err = kong.vault.get(KONNECT_TOKEN)
+          if not value then return nil, "vault lookup failed: " .. tostring(err) end
+          return value
+        end
+        return KONNECT_TOKEN
+      end
+
+      local function konnect_get(path, token)
+        local httpc = http.new()
+        httpc:set_timeout(3000)
+        local res, err = httpc:request_uri(KONNECT_API .. path, {
+          method  = "GET",
+          headers = { ["Authorization"] = "Bearer " .. token, ["Accept"] = "application/json" },
+          ssl_verify = true,
+        })
+        if not res then return nil, path .. " request failed: " .. tostring(err) end
+        if res.status ~= 200 then return nil, path .. " returned " .. res.status end
+        local doc = cjson.decode(res.body)
+        if type(doc) ~= "table" then return nil, path .. " returned invalid JSON" end
+        return doc
+      end
+
+      -- Finds the AI Gateway whose definition mentions this data plane's control
+      -- plane host (or its cluster prefix). Resolved once per worker, then reused.
+      local function resolve_gateway_id(token)
+        if GATEWAY_ID then return GATEWAY_ID end
+        if not cp_host or cp_host == "" then
+          return nil, "cluster_control_plane is not set on this data plane"
+        end
+        local doc, err = konnect_get("/v1/ai-gateways?page%5Bsize%5D=100", token)
+        if not doc then return nil, err end
+
+        local prefix = cp_host:match("^([^.]+)")
+        for _, gw in ipairs(doc.data or doc) do
+          local raw = cjson.encode(gw) or ""
+          if raw:find(cp_host, 1, true) or (prefix and raw:find(prefix, 1, true)) then
+            GATEWAY_ID = gw.id
+            kong.log.notice("[models-list] resolved AI Gateway ", gw.name or "?", " (", gw.id, ")")
+            return GATEWAY_ID
+          end
+        end
+        return nil, "no AI Gateway visible to the token matches " .. cp_host
+      end
+
+      local function has_format(model, wanted)
+        for _, f in ipairs(model.formats or {}) do
+          if type(f) == "table" and f.type == wanted then return true end
+        end
+        return false
+      end
+
+      local function fetch_models()
+        local token, terr = get_token()
+        if not token then return nil, terr end
+        local gateway_id, gerr = resolve_gateway_id(token)
+        if not gateway_id then return nil, gerr end
+
+        local doc, err = konnect_get("/v1/ai-gateways/" .. gateway_id .. "/models?page%5Bsize%5D=100", token)
+        if not doc then return nil, err end
+
+        local list = {}
+        for _, m in ipairs(doc.data or doc) do
+          local alias = type(m.config) == "table" and type(m.config.route) == "table"
+            and type(m.config.route.model) == "table" and type(m.config.route.model.values) == "table"
+            and m.config.route.model.values[1]
+          if m.enabled ~= false and has_format(m, "anthropic") and type(alias) == "string" and alias ~= "" then
+            list[#list + 1] = {
+              type = "model",
+              id = alias,
+              display_name = m.display_name or m.name,
+              created_at = m.created_at,
+            }
+          end
+        end
+        table.sort(list, function(a, b) return a.id < b.id end)
+
+        if #list == 0 then
+          return '{"data":[],"has_more":false,"first_id":null,"last_id":null}'
+        end
+        return cjson.encode({
+          data = list,
+          has_more = false,
+          first_id = list[1].id,
+          last_id = list[#list].id,
+        })
+      end
+
+      return function()
+        if kong.request.get_method() ~= "GET" then
+          return kong.response.exit(405, '{"error":"method not allowed"}', JSON)
+        end
+
+        local now = ngx.now()
+        if not cache.body or now >= cache.expires then
+          local body, err = fetch_models()
+          if body then
+            cache.body, cache.expires = body, now + CACHE_TTL
+          elseif cache.body then
+            kong.log.warn("[models-list] refresh failed, serving cached list: ", err)
+            cache.expires = now + RETRY_AFTER
+          else
+            kong.log.err("[models-list] ", err)
+            return kong.response.exit(503, '{"error":"model list unavailable"}', JSON)
+          end
+        end
+
+        return kong.response.exit(200, cache.body, JSON)
+      end
 ai_gateway_mcp_servers:
 - ref: v1-models-mcp
   ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
@@ -18,8 +157,12 @@ ai_gateway_mcp_servers:
   display_name: v1 models MCP
   type: passthrough-listener
   enabled: true
+  access:
+    acl_attribute_type: consumer
+    auth_strategies:
+    - claude-key-auth
   policies:
-  - v1-models-welcome
+  - models-list-pre-function
   config:
     url: http://unresolvable.invalid
     route:

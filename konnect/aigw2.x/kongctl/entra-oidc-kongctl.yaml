@@ -1,0 +1,93 @@
+# Entra ID (OIDC) auth strategy for AI Gateway 2.x.
+# Documented in docs/Route-Claude-Desktop-through-Kong-AI-Gateway.html (Step 5).
+#
+# Env: AI_GATEWAY_ID, ISSUER_URL (https://login.microsoftonline.com/<tenant-id>/v2.0),
+#      CLIENT_ID, CLIENT_SECRET, ENTRA_SCOPE (api://<CLIENT_ID>/.default), OPENAI_AUTH_HEADER
+#
+# The Entra app registration must issue v2 access tokens
+# (manifest: requestedAccessTokenVersion = 2), otherwise "iss" is
+# https://sts.windows.net/<tenant>/ and every request fails with 401.
+#
+# After applying, add identity-oidc next to claude-key-auth in the
+# access.auth_strategies of each claude-* model in claude-kongctl.yaml.
+#
+# Apply: kongctl apply -f entra-oidc-kongctl.yaml --pat "$KONNECT_TOKEN"
+_defaults:
+  kongctl:
+    namespace: ai-gateway-kongctl
+
+ai_gateway_auth_strategies:
+- ref: identity-oidc
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  display_name: "Identity OIDC (Entra ID)"
+  name: identity-oidc
+  type: openid-connect
+  config:
+    issuer: !env 'ISSUER_URL'
+    client_id:
+    - !env 'CLIENT_ID'
+    client_secret:
+    - !secret {source: !env 'CLIENT_SECRET'}
+    auth_methods:
+    - bearer
+    scopes:
+    - !env 'ENTRA_SCOPE'           # only used when Kong itself requests tokens
+    audience_required:
+    - !env 'CLIENT_ID'             # v2 tokens carry the API app's client ID in "aud"
+    consumer_claims:
+    - - azp                        # client ID of the calling app ("sub" is the service principal object ID)
+    consumer_by:
+    - custom_id
+    # Claude Desktop users (interactive sign-in) do not map to an AI Consumer:
+    # consumer_optional: true
+    # roles_claim: [roles]
+    # roles_required: [AIGateway.Access]
+    cache_tokens_salt: identity-oidc-cache-salt
+
+ai_gateway_consumers:
+- ref: cli-tool-consumer
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  display_name: "CLI Tool Consumer"
+  name: cli-tool-consumer
+  type: oauth
+  custom_id: !env 'CLIENT_ID'      # equals "azp" in the CLI tool's tokens
+  policies: []
+
+ai_gateway_model_providers:
+- ref: generic-openai
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  name: generic-openai
+  display_name: "generic-openai"
+  type: openai
+  config:
+    auth:
+      type: basic
+      headers:
+      - name: Authorization
+        value: !secret {source: !env 'OPENAI_AUTH_HEADER'}
+
+ai_gateway_models:
+- ref: my-gpt-4o-mini
+  ai_gateway: !lookup {id: !env 'AI_GATEWAY_ID'}
+  display_name: my-gpt-4o-mini
+  name: my-gpt-4o-mini
+  type: model
+  enabled: true
+  formats: [{type: openai}]
+  access:
+    auth_strategies:
+    - !ref identity-oidc#name
+  config:
+    route:
+      paths:
+      - /
+      model:
+        body_param: model
+        values:
+        - my-gpt-4o-mini
+  capabilities: [generate]
+  targets:
+  - name: gpt-4o-mini
+    provider: generic-openai
+    config:
+      type: openai
